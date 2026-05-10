@@ -1,0 +1,1461 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argira · Analizador v4 — FFT 2D</title>
+<meta name="description" content="Argira: analizador de estructura visual con FFT 2D para detección real de puntillismo.">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=IBM+Plex+Mono:wght@400;500&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --gold:      #e8c96a;
+  --gold-dim:  rgba(232,201,106,0.25);
+  --gold-glow: rgba(232,201,106,0.08);
+  --bg:        #0d0c0a;
+  --bg2:       #13120f;
+  --bg3:       #1a1915;
+  --text:      #d4cabb;
+  --text-dim:  #8a8070;
+  --red:       #ef5350;
+  --teal:      #4db6ac;
+  --purple:    #9575cd;
+  --border:    rgba(232,201,106,0.15);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 14px;
+  line-height: 1.7;
+  min-height: 100vh;
+}
+
+/* ── NAV ── */
+.nav {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 32px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(13,12,10,0.92);
+  position: sticky; top: 0; z-index: 100;
+  backdrop-filter: blur(8px);
+}
+.nav-brand {
+  font-family: 'Cinzel', serif;
+  font-size: 0.75rem; letter-spacing: 0.28em;
+  color: var(--gold); text-decoration: none; text-transform: uppercase;
+}
+.nav-tag {
+  font-size: 0.68rem; color: var(--text-dim); letter-spacing: 0.1em;
+}
+
+/* ── HERO ── */
+.hero {
+  text-align: center; padding: 56px 24px 40px;
+  border-bottom: 1px solid var(--border);
+}
+.hero-eyebrow {
+  font-size: 0.68rem; letter-spacing: 0.22em; color: var(--text-dim);
+  text-transform: uppercase; margin-bottom: 16px;
+}
+.hero-title {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(1.8rem, 5vw, 3rem);
+  color: var(--gold); letter-spacing: 0.12em; margin-bottom: 8px;
+}
+.hero-sub {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.1rem; color: var(--text-dim); font-style: italic;
+  margin-bottom: 24px;
+}
+.hero-new-badge {
+  display: inline-block;
+  background: rgba(149,117,205,0.15);
+  border: 1px solid rgba(149,117,205,0.4);
+  color: var(--purple);
+  font-size: 0.68rem; letter-spacing: 0.18em;
+  padding: 4px 14px; text-transform: uppercase; margin-bottom: 20px;
+}
+.hero-desc {
+  max-width: 580px; margin: 0 auto;
+  color: var(--text-dim); font-size: 0.82rem;
+  font-family: 'Cormorant Garamond', serif; font-size: 1rem;
+  line-height: 1.8;
+}
+
+/* ── LAYOUT PRINCIPAL ── */
+.main { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+@media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
+
+/* ── PANELES ── */
+.panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  padding: 24px;
+}
+.panel-title {
+  font-family: 'Cinzel', serif;
+  font-size: 0.68rem; letter-spacing: 0.22em;
+  color: var(--gold); text-transform: uppercase;
+  margin-bottom: 16px;
+  display: flex; align-items: center; gap: 10px;
+}
+.panel-title::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+
+/* ── ZONA DE CARGA ── */
+.drop-zone {
+  border: 1px dashed rgba(232,201,106,0.3);
+  padding: 36px 20px;
+  text-align: center; cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  position: relative;
+}
+.drop-zone:hover, .drop-zone.drag-over {
+  background: var(--gold-glow); border-color: var(--gold-dim);
+}
+.drop-zone input[type="file"] {
+  position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 2;
+}
+.drop-icon { font-size: 2rem; margin-bottom: 10px; }
+.drop-label { font-size: 0.78rem; color: var(--text-dim); }
+.drop-hint { font-size: 0.68rem; color: var(--text-dim); opacity: 0.6; margin-top: 6px; }
+
+.tab-row {
+  display: flex; gap: 2px; margin-bottom: 14px;
+}
+.tab {
+  flex: 1; padding: 8px 4px;
+  background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text-dim); font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
+  cursor: pointer; transition: all 0.15s;
+}
+.tab:hover { color: var(--text); background: var(--gold-glow); }
+.tab.active { background: var(--gold-glow); color: var(--gold); border-color: var(--gold-dim); }
+
+.examples-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+}
+.example-btn {
+  padding: 8px 6px; background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text-dim); font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem; cursor: pointer; text-align: center;
+  transition: all 0.15s; line-height: 1.5;
+}
+.example-btn:hover { background: var(--gold-glow); color: var(--gold); border-color: var(--gold-dim); }
+
+.url-row { display: flex; gap: 8px; margin-top: 10px; }
+.url-input {
+  flex: 1; background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text); font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem; padding: 8px 12px;
+}
+.url-input::placeholder { color: var(--text-dim); opacity: 0.5; }
+.url-btn {
+  padding: 8px 14px; background: var(--gold-glow);
+  border: 1px solid var(--gold-dim); color: var(--gold);
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem;
+  letter-spacing: 0.1em; cursor: pointer;
+}
+
+/* ── CANVAS IMAGEN ── */
+.image-wrap {
+  position: relative; background: #080807;
+  min-height: 200px; display: flex; align-items: center; justify-content: center;
+}
+#mainCanvas {
+  max-width: 100%; max-height: 320px;
+  display: block; margin: 0 auto;
+}
+.image-empty {
+  color: var(--text-dim); font-size: 0.78rem;
+  text-align: center; padding: 40px;
+}
+
+/* ── FFT PANEL ── */
+.fft-wrap {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  margin-top: 12px;
+}
+.fft-canvas-wrap { position: relative; }
+.fft-label {
+  font-size: 0.65rem; color: var(--text-dim); letter-spacing: 0.1em;
+  text-transform: uppercase; margin-bottom: 6px;
+}
+#fftCanvas, #fftRadialCanvas {
+  width: 100%; display: block; border: 1px solid var(--border);
+  background: #000;
+}
+
+/* ── MÉTRICAS ── */
+.metrics-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  margin-bottom: 16px;
+}
+.metric-card {
+  background: var(--bg3); border: 1px solid var(--border); padding: 12px 14px;
+}
+.metric-name {
+  font-size: 0.65rem; letter-spacing: 0.12em; color: var(--text-dim);
+  text-transform: uppercase; margin-bottom: 6px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.metric-value {
+  font-family: 'Cinzel', serif; font-size: 1.3rem; color: var(--gold);
+  margin-bottom: 6px;
+}
+.metric-bar-track {
+  height: 3px; background: rgba(255,255,255,0.06); position: relative;
+}
+.metric-bar-fill {
+  height: 100%; background: var(--gold); transition: width 0.6s ease;
+}
+
+/* FFT metric cards get purple accent */
+.metric-card.fft-metric .metric-value { color: var(--purple); }
+.metric-card.fft-metric .metric-bar-fill { background: var(--purple); }
+.metric-card.fft-metric { border-color: rgba(149,117,205,0.2); }
+
+/* ── TOKEN SONORO ── */
+.token-block {
+  background: var(--bg3); border: 1px solid var(--gold-dim);
+  padding: 16px 20px; margin-bottom: 16px;
+}
+.token-freq {
+  font-family: 'Cinzel', serif; font-size: 2rem; color: var(--gold);
+  letter-spacing: 0.06em;
+}
+.token-signature {
+  font-size: 0.72rem; color: var(--text-dim); margin-top: 4px;
+  line-height: 1.8; word-break: break-all;
+}
+
+/* Frequency bar */
+.freq-bar-wrap { margin: 12px 0; }
+.freq-bar-label {
+  display: flex; justify-content: space-between;
+  font-size: 0.65rem; color: var(--text-dim); margin-bottom: 4px;
+}
+.freq-bar-track {
+  height: 6px; background: rgba(255,255,255,0.06); position: relative;
+}
+.freq-bar-fill {
+  height: 100%; background: linear-gradient(90deg, var(--teal), var(--gold));
+  transition: width 0.6s ease;
+}
+.freq-bar-marker {
+  position: absolute; top: -3px; width: 2px; height: 12px;
+  background: var(--gold); transform: translateX(-50%);
+  transition: left 0.6s ease;
+}
+
+/* ── AUDIO CONTROLS ── */
+.audio-controls {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.btn {
+  padding: 10px 20px;
+  border: 1px solid var(--gold-dim); background: var(--gold-glow);
+  color: var(--gold); font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase;
+  cursor: pointer; transition: all 0.15s;
+}
+.btn:hover { background: rgba(232,201,106,0.15); }
+.btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.btn.playing { background: rgba(232,201,106,0.18); }
+
+/* ── RADAR CHART ── */
+#radarCanvas {
+  display: block; margin: 0 auto; max-width: 280px;
+}
+
+/* ── INTERPRETACIÓN ── */
+.interp-block {
+  background: var(--bg3); border-left: 2px solid var(--gold);
+  padding: 14px 18px; margin-bottom: 14px;
+}
+.interp-style {
+  font-family: 'Cinzel', serif; font-size: 0.82rem;
+  color: var(--gold); letter-spacing: 0.1em; margin-bottom: 8px;
+}
+.interp-text { font-size: 0.82rem; color: var(--text-dim); line-height: 1.8; }
+
+/* FFT interpretation card */
+.fft-interp {
+  background: rgba(149,117,205,0.06);
+  border: 1px solid rgba(149,117,205,0.25);
+  padding: 14px 18px; margin-bottom: 14px;
+}
+.fft-interp-title {
+  font-family: 'Cinzel', serif; font-size: 0.72rem;
+  color: var(--purple); letter-spacing: 0.14em;
+  text-transform: uppercase; margin-bottom: 8px;
+}
+.fft-interp-text { font-size: 0.82rem; color: var(--text-dim); line-height: 1.8; }
+
+/* ── TABLA ACCESIBILIDAD ── */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0;
+  margin: -1px; overflow: hidden; clip: rect(0,0,0,0);
+  white-space: nowrap; border: 0;
+}
+.metrics-table-visible {
+  width: 100%; border-collapse: collapse;
+  font-size: 0.78rem; margin-top: 16px;
+}
+.metrics-table-visible th, .metrics-table-visible td {
+  text-align: left; padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.metrics-table-visible th { color: var(--gold); font-weight: 500; }
+.metrics-table-visible td { color: var(--text-dim); }
+.metrics-table-visible tr:last-child td { border-bottom: none; }
+.fft-row td, .fft-row th { color: var(--purple) !important; }
+
+/* ── FÓRMULAS ── */
+.formulas-block {
+  background: var(--bg3); border: 1px solid var(--border);
+  padding: 16px 20px; margin-top: 16px;
+}
+.formula-title {
+  font-size: 0.65rem; letter-spacing: 0.18em; color: var(--text-dim);
+  text-transform: uppercase; margin-bottom: 12px;
+}
+.formula-line {
+  font-size: 0.78rem; color: var(--text-dim);
+  padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+  line-height: 1.7;
+  word-break: break-word; overflow-wrap: break-word;
+}
+.formula-line:last-child { border-bottom: none; }
+.formula-line strong { color: var(--text); }
+.formula-line.fft-formula strong { color: var(--purple); }
+.formula-line.fft-formula { color: rgba(149,117,205,0.8); }
+
+/* ── SPEAK BTN ── */
+.speak-btn {
+  width: 100%; padding: 10px;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-dim); font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem; cursor: pointer; transition: all 0.15s;
+}
+.speak-btn:hover { background: var(--gold-glow); color: var(--gold); border-color: var(--gold-dim); }
+
+/* ── STATUS ── */
+#statusMsg {
+  font-size: 0.72rem; color: var(--text-dim); min-height: 20px;
+  letter-spacing: 0.06em;
+}
+#statusMsg.ok { color: var(--teal); }
+#statusMsg.err { color: var(--red); }
+#statusMsg.computing { color: var(--purple); }
+
+/* ── PROGRESS BAR ── */
+.progress-wrap { display: none; margin-top: 10px; }
+.progress-wrap.visible { display: block; }
+.progress-label { font-size: 0.65rem; color: var(--text-dim); margin-bottom: 4px; }
+.progress-track { height: 2px; background: rgba(255,255,255,0.06); }
+.progress-fill { height: 100%; background: var(--purple); transition: width 0.1s; }
+
+/* ── FOOTER ── */
+footer {
+  text-align: center; padding: 32px 24px;
+  border-top: 1px solid var(--border);
+  font-size: 0.72rem; color: var(--text-dim);
+  line-height: 2;
+}
+footer a { color: var(--gold); text-decoration: none; }
+
+/* ── DIVIDER ── */
+.divider {
+  display: flex; align-items: center; gap: 16px;
+  margin: 32px 0 20px;
+}
+.divider-line { flex: 1; height: 1px; background: var(--border); }
+.divider-text {
+  font-size: 0.65rem; letter-spacing: 0.2em; color: var(--text-dim);
+  text-transform: uppercase; white-space: nowrap;
+}
+</style>
+</head>
+<body>
+
+<a href="#main-content" class="sr-only">Saltar al contenido principal</a>
+<div aria-live="polite" aria-atomic="true" class="sr-only" id="live-region"></div>
+
+<!-- NAV -->
+<nav class="nav" aria-label="Navegación principal">
+  <a href="https://argira.eus/argira-sonification/" class="nav-brand">← Argira · Museo Sonoro</a>
+  <span class="nav-tag">Analizador v4 · FFT 2D</span>
+</nav>
+
+<!-- HERO -->
+<header class="hero">
+  <p class="hero-eyebrow">Argira Station · ICAD 2026 · Jose Ranero García</p>
+  <h1 class="hero-title">Argira · Herramienta de Análisis</h1>
+  <div class="hero-new-badge">✦ Nuevo en v4 — Detección real de puntillismo por FFT 2D</div>
+  <p class="hero-sub">Analizador de Imagen · Estructura Visual → Firma Acústica</p>
+  <p class="hero-desc">
+    Lo que el ojo no ve, el algoritmo lo mide.<br>
+    Lo que el algoritmo mide, el sonido lo revela.
+  </p>
+</header>
+
+<!-- MAIN -->
+<main id="main-content" class="main">
+
+  <!-- ROW 1: Carga + Imagen -->
+  <div class="grid-2">
+
+    <!-- Panel carga -->
+    <div class="panel">
+      <div class="panel-title">Imagen analizada</div>
+
+      <div class="tab-row" role="tablist" aria-label="Fuente de imagen">
+        <button class="tab active" role="tab" aria-selected="true" id="tab-examples" onclick="switchTab('examples')">Ejemplos</button>
+        <button class="tab" role="tab" aria-selected="false" id="tab-upload" onclick="switchTab('upload')">Subir</button>
+        <button class="tab" role="tab" aria-selected="false" id="tab-url" onclick="switchTab('url')">URL</button>
+      </div>
+
+      <!-- Ejemplos -->
+      <div id="pane-examples">
+        <div class="examples-grid">
+          <button class="example-btn" onclick="loadExample('malevich')">Malevich<br><span style="color:#555;font-size:0.62rem;">Blanco/Negro</span></button>
+          <button class="example-btn" onclick="loadExample('rothko')">Rothko<br><span style="color:#555;font-size:0.62rem;">Campo color</span></button>
+          <button class="example-btn" onclick="loadExample('monet')">Monet<br><span style="color:#555;font-size:0.62rem;">Impresionismo</span></button>
+          <button class="example-btn" onclick="loadExample('seurat')">Seurat<br><span style="color:#555;font-size:0.62rem;">Puntillismo</span></button>
+          <button class="example-btn" onclick="loadExample('vangogn')">Van Gogh<br><span style="color:#555;font-size:0.62rem;">Expresionismo</span></button>
+          <button class="example-btn" onclick="loadExample('kandinsky')">Kandinsky<br><span style="color:#555;font-size:0.62rem;">Abstracción</span></button>
+        </div>
+      </div>
+
+      <!-- Upload -->
+      <div id="pane-upload" style="display:none;">
+        <div class="drop-zone" id="dropZone">
+          <div class="drop-icon">📂</div>
+          <div class="drop-label">Arrastra una imagen aquí</div>
+          <div class="drop-hint">o haz clic para seleccionar · JPG, PNG, WebP</div>
+          <input type="file" id="fileInput" accept="image/*" onchange="handleFileInput(this)">
+        </div>
+      </div>
+
+      <!-- URL -->
+      <div id="pane-url" style="display:none;">
+        <div class="url-row">
+          <input class="url-input" id="urlInput" type="url" placeholder="https://...imagen.jpg" aria-label="URL de imagen">
+          <button class="url-btn" onclick="loadFromUrl()">Cargar</button>
+        </div>
+        <p style="font-size:0.68rem;color:var(--text-dim);margin-top:8px;">
+          Nota: CORS puede bloquear algunas URLs externas.
+        </p>
+      </div>
+
+      <!-- Status -->
+      <div style="margin-top:14px;">
+        <div id="statusMsg">Elige una imagen para comenzar el análisis.</div>
+        <div class="progress-wrap" id="progressWrap">
+          <div class="progress-label" id="progressLabel">Calculando FFT 2D…</div>
+          <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <!-- Audio controls -->
+      <div class="audio-controls" style="margin-top:16px;">
+        <button class="btn" id="playBtn" onclick="toggleSound()" disabled>▶ Escuchar irregularidad</button>
+        <button class="btn" id="stopBtn" onclick="stopSound()" disabled>■ Parar</button>
+      </div>
+
+      <!-- Token sonoro -->
+      <div class="token-block">
+        <div style="font-size:0.65rem;letter-spacing:0.18em;color:var(--text-dim);text-transform:uppercase;margin-bottom:8px;">Token sonoro</div>
+        <div class="token-freq" id="tokenFreq">— Hz</div>
+        <div class="freq-bar-wrap">
+          <div class="freq-bar-label">
+            <span>209 Hz · Malevich</span>
+            <span>277 Hz · Van Gogh</span>
+          </div>
+          <div class="freq-bar-track">
+            <div class="freq-bar-fill" id="freqBarFill" style="width:0%"></div>
+            <div class="freq-bar-marker" id="freqBarMarker" style="left:0%"></div>
+          </div>
+        </div>
+        <div class="token-signature" id="tokenSig">Firma acústica: —</div>
+      </div>
+
+      <!-- Speak -->
+      <button class="speak-btn" id="speakBtn" onclick="speakProfile()" disabled aria-label="Leer perfil sonoro en voz alta">
+        🔊 Leer perfil sonoro en voz alta
+      </button>
+    </div>
+
+    <!-- Panel imagen + FFT -->
+    <div class="panel">
+      <div class="panel-title">Imagen analizada</div>
+      <div class="image-wrap">
+        <canvas id="mainCanvas"></canvas>
+        <p class="image-empty" id="imgEmpty">Sin imagen cargada</p>
+      </div>
+
+      <div class="divider" style="margin:16px 0 12px;">
+        <div class="divider-line"></div>
+        <span class="divider-text">Espectro FFT 2D</span>
+        <div class="divider-line"></div>
+      </div>
+
+      <div class="fft-wrap">
+        <div class="fft-canvas-wrap">
+          <div class="fft-label">Espectro de potencia (log)</div>
+          <canvas id="fftCanvas" width="200" height="200" aria-label="Mapa de espectro de potencia FFT 2D — frecuencias espaciales en 2D"></canvas>
+        </div>
+        <div class="fft-canvas-wrap">
+          <div class="fft-label">Perfil radial (frecuencia → energía)</div>
+          <canvas id="fftRadialCanvas" width="200" height="200" aria-label="Gráfico de perfil radial del espectro FFT — frecuencia espacial vs energía acumulada"></canvas>
+        </div>
+      </div>
+
+      <!-- FFT interpretación -->
+      <div class="fft-interp" id="fftInterpBlock" style="margin-top:12px;">
+        <div class="fft-interp-title">✦ Interpretación FFT 2D</div>
+        <div class="fft-interp-text" id="fftInterpText">Carga una imagen para ver el análisis de frecuencia espacial.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 2: Métricas + Radar -->
+  <div class="grid-2">
+
+    <!-- Métricas -->
+    <div class="panel">
+      <div class="panel-title">Métricas de estructura visual</div>
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-name">Irregularidad <span title="Energía de alta frecuencia entre píxeles vecinos">ⓘ</span></div>
+          <div class="metric-value" id="mIrr">—</div>
+          <div class="metric-bar-track"><div class="metric-bar-fill" id="bIrr" style="width:0%"></div></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-name">Entropía Shannon <span title="Riqueza informativa del histograma de luminancia">ⓘ</span></div>
+          <div class="metric-value" id="mEnt">—</div>
+          <div class="metric-bar-track"><div class="metric-bar-fill" id="bEnt" style="width:0%"></div></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-name">Varianza cromática <span title="Dispersión de los canales RGB">ⓘ</span></div>
+          <div class="metric-value" id="mRgb">—</div>
+          <div class="metric-bar-track"><div class="metric-bar-fill" id="bRgb" style="width:0%"></div></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-name">Contraste local <span title="Varianza de luminancia en bloques 8×8">ⓘ</span></div>
+          <div class="metric-value" id="mCont">—</div>
+          <div class="metric-bar-track"><div class="metric-bar-fill" id="bCont" style="width:0%"></div></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-name">Esfuerzo <span title="0.5·Irr + 0.3·Ent + 0.2·σRGB">ⓘ</span></div>
+          <div class="metric-value" id="mEff">—</div>
+          <div class="metric-bar-track"><div class="metric-bar-fill" id="bEff" style="width:0%"></div></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-name">Densidad bordes (Sobel) <span title="Gradiente Sobel 3×3 normalizado">ⓘ</span></div>
+          <div class="metric-value" id="mSobel">—</div>
+          <div class="metric-bar-track"><div class="metric-bar-fill" id="bSobel" style="width:0%"></div></div>
+        </div>
+
+        <!-- FFT métricas — nuevas en v4 -->
+        <div class="metric-card fft-metric">
+          <div class="metric-name" style="color:var(--purple);">FFT · Freq. espacial pico <span title="Frecuencia espacial dominante en ciclos/píxel (0=DC, 0.5=máxima)">ⓘ</span></div>
+          <div class="metric-value" id="mFftPeak">—</div>
+          <div class="metric-bar-track"><div class="metric-bar-fill" id="bFftPeak" style="width:0%"></div></div>
+        </div>
+        <div class="metric-card fft-metric">
+          <div class="metric-name" style="color:var(--purple);">FFT · Energía alta frec. <span title="Proporción de energía en frecuencias altas (>0.1 c/px) — alto = puntillismo">ⓘ</span></div>
+          <div class="metric-value" id="mFftHigh">—</div>
+          <div class="metric-bar-track"><div class="metric-bar-fill" id="bFftHigh" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <!-- Tabla accesible -->
+      <table class="metrics-table-visible" id="metricsTable" aria-label="Tabla de métricas de la imagen analizada">
+        <thead>
+          <tr><th>Métrica</th><th>Valor</th><th>Descripción</th></tr>
+        </thead>
+        <tbody id="metricsTableBody">
+          <tr><td colspan="3" style="color:var(--text-dim);">Sin datos — carga una imagen</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Radar + interpretación -->
+    <div class="panel">
+      <div class="panel-title">Perfil de métricas</div>
+      <canvas id="radarCanvas" width="280" height="280"
+              aria-label="Radar chart con 8 ejes: irregularidad, entropía, varianza cromática, contraste local, esfuerzo, Sobel, FFT pico, FFT energía alta"></canvas>
+
+      <div class="interp-block" id="interpBlock" style="margin-top:16px;">
+        <div class="interp-style" id="interpStyle">—</div>
+        <div class="interp-text" id="interpText">Carga una imagen para ver la interpretación automática.</div>
+      </div>
+
+      <!-- Fórmulas -->
+      <div class="formulas-block">
+        <div class="formula-title">Fórmulas aplicadas</div>
+        <div class="formula-line"><strong>Irregularidad</strong> = (1/N)·Σ|L(i,j)−L(i+1,j)| / 255</div>
+        <div class="formula-line"><strong>Entropía</strong> = −Σ p(g)·log₂p(g) [normalizada a 8 bits]</div>
+        <div class="formula-line"><strong>Varianza RGB</strong> = √(σ²R+σ²G+σ²B) / 3 / 255</div>
+        <div class="formula-line"><strong>Esfuerzo</strong> = 0.5·Irr + 0.3·Ent + 0.2·σRGB</div>
+        <div class="formula-line"><strong>Contraste local</strong> = σ(bloques 8×8) / 255</div>
+        <div class="formula-line"><strong>Sobel</strong> = (1/N)·Σ√(Gx²+Gy²) / 1442</div>
+        <div class="formula-line fft-formula"><strong>FFT 2D</strong>: DFT 2D sobre luminancia reducida (128×128)</div>
+        <div class="formula-line fft-formula"><strong>Espectro potencia</strong> = log(1 + |F(u,v)|²) [centrado]</div>
+        <div class="formula-line fft-formula"><strong>Perfil radial</strong>: energía acumulada por anillo de frecuencia</div>
+        <div class="formula-line fft-formula"><strong>Freq. pico</strong> = argmax(perfil_radial) / N_max [c/px, excluye DC]</div>
+        <div class="formula-line fft-formula"><strong>Energía alta frec.</strong> = Σ E(r > 0.1·R) / Σ E(r > 0) [%]</div>
+        <div class="formula-line"><strong>F(Hz)</strong> = 200 + Irr×800 [dataset: 209–277 Hz]</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <p>ARGIRA · Museo Sonoro · ICAD 2026 · Jose Ranero García</p>
+  <p><a href="https://doi.org/10.5281/zenodo.18832291" target="_blank" rel="noopener">Dataset Zenodo · 10.5281/zenodo.18832291</a></p>
+  <p style="margin-top:8px;font-size:0.65rem;opacity:0.5;">
+    v4.0 — FFT 2D añade detección real de puntillismo por frecuencia espacial dominante
+  </p>
+</footer>
+
+<!-- ═══════════════════════════════════════════════════════════ SCRIPT -->
+<script>
+'use strict';
+
+// ── Estado global ─────────────────────────────────────────────────────────────
+let metrics = null;
+let audioCtx = null, oscillator = null, gainNode = null;
+let isPlaying = false;
+let currentImageName = '';
+
+// ── Canvases ──────────────────────────────────────────────────────────────────
+const mainCanvas     = document.getElementById('mainCanvas');
+const fftCanvas      = document.getElementById('fftCanvas');
+const fftRadialCvs   = document.getElementById('fftRadialCanvas');
+const radarCanvas    = document.getElementById('radarCanvas');
+const mCtx           = mainCanvas.getContext('2d');
+const fCtx           = fftCanvas.getContext('2d');
+const rCtx           = fftRadialCvs.getContext('2d');
+const radCtx         = radarCanvas.getContext('2d');
+
+// ── Helpers UI ────────────────────────────────────────────────────────────────
+function setStatus(msg, cls = '') {
+  const el = document.getElementById('statusMsg');
+  el.textContent = msg;
+  el.className = cls;
+  announce(msg);
+}
+function announce(msg) {
+  document.getElementById('live-region').textContent = '';
+  requestAnimationFrame(() => { document.getElementById('live-region').textContent = msg; });
+}
+function setProgress(pct, label) {
+  const wrap = document.getElementById('progressWrap');
+  wrap.classList.toggle('visible', pct < 100 && pct > 0);
+  document.getElementById('progressFill').style.width = pct + '%';
+  if (label) document.getElementById('progressLabel').textContent = label;
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  ['examples','upload','url'].forEach(t => {
+    document.getElementById('pane-' + t).style.display = t === tab ? '' : 'none';
+    document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+    document.getElementById('tab-' + t).setAttribute('aria-selected', t === tab);
+  });
+}
+
+// ── Drag and drop ─────────────────────────────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+if (dropZone) {
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) handleFile(file);
+  });
+}
+
+function handleFileInput(input) {
+  if (input.files[0]) handleFile(input.files[0]);
+}
+function handleFile(file) {
+  currentImageName = file.name.replace(/\.[^.]+$/, '');
+  const url = URL.createObjectURL(file);
+  loadImageFromUrl(url, currentImageName);
+}
+
+function loadFromUrl() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) return;
+  const name = url.split('/').pop().replace(/\?.*/, '').replace(/\.[^.]+$/, '') || 'imagen';
+  loadImageFromUrl(url, name);
+}
+
+// ── Carga imagen principal ────────────────────────────────────────────────────
+function loadImageFromUrl(url, name) {
+  currentImageName = name;
+  setStatus('Cargando imagen…', 'computing');
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    document.getElementById('imgEmpty').style.display = 'none';
+    // Dibujar en mainCanvas
+    const MAX = 640;
+    const scale = Math.min(MAX / img.width, MAX / img.height, 1);
+    mainCanvas.width  = Math.round(img.width  * scale);
+    mainCanvas.height = Math.round(img.height * scale);
+    mCtx.drawImage(img, 0, 0, mainCanvas.width, mainCanvas.height);
+    setStatus('Calculando métricas…', 'computing');
+    setTimeout(() => runAnalysis(mainCanvas), 60);
+  };
+  img.onerror = () => setStatus('Error al cargar la imagen. Prueba otra URL.', 'err');
+  img.src = url;
+}
+
+// ── Generadores de ejemplos sintéticos ───────────────────────────────────────
+function loadExample(type) {
+  currentImageName = type;
+  const SIZE = 256;
+  const offscreen = document.createElement('canvas');
+  offscreen.width = offscreen.height = SIZE;
+  const ctx = offscreen.getContext('2d');
+
+  if (type === 'malevich') {
+    // Casi todo blanco con cuadrado ligeramente diferente
+    ctx.fillStyle = '#f0eeea'; ctx.fillRect(0,0,SIZE,SIZE);
+    ctx.fillStyle = '#e8e6e2'; ctx.fillRect(50,50,156,156);
+  } else if (type === 'rothko') {
+    // Bandas suaves de color
+    const g = ctx.createLinearGradient(0,0,0,SIZE);
+    g.addColorStop(0,'#8B2500'); g.addColorStop(0.45,'#C44000');
+    g.addColorStop(0.55,'#1a1200'); g.addColorStop(1,'#0a0a0a');
+    ctx.fillStyle = g; ctx.fillRect(0,0,SIZE,SIZE);
+    // Suavizado de bordes
+    ctx.fillStyle = 'rgba(0,0,0,0.05)';
+    for(let y=100;y<155;y++) {
+      ctx.fillRect(0,y,SIZE,1);
+    }
+  } else if (type === 'monet') {
+    // Pinceladas de tamaño medio, muchos colores
+    const palette = ['#87CEEB','#4682B4','#228B22','#90EE90','#98FB98','#F0E68C','#DEB887','#B0C4DE'];
+    for (let i=0; i<1800; i++) {
+      const x = Math.random()*SIZE, y = Math.random()*SIZE;
+      const w = 6+Math.random()*14, h = 3+Math.random()*8;
+      const angle = Math.random()*Math.PI;
+      ctx.save(); ctx.translate(x,y); ctx.rotate(angle);
+      ctx.fillStyle = palette[Math.floor(Math.random()*palette.length)];
+      ctx.globalAlpha = 0.55 + Math.random()*0.4;
+      ctx.fillRect(-w/2,-h/2,w,h);
+      ctx.restore();
+    }
+  } else if (type === 'seurat') {
+    // Puntillismo real: puntos pequeños, uniformes, colores primarios
+    ctx.fillStyle = '#f5f0e0'; ctx.fillRect(0,0,SIZE,SIZE);
+    const palette2 = ['#E74C3C','#3498DB','#2ECC71','#F39C12','#9B59B6','#1ABC9C','#E67E22'];
+    const DOT = 3; // diámetro punto
+    for (let y=0; y<SIZE; y+=DOT+1) {
+      for (let x=0; x<SIZE; x+=DOT+1) {
+        ctx.beginPath();
+        ctx.arc(x + Math.random()*2, y + Math.random()*2, DOT/2, 0, Math.PI*2);
+        ctx.fillStyle = palette2[Math.floor(Math.random()*palette2.length)];
+        ctx.globalAlpha = 0.8 + Math.random()*0.2;
+        ctx.fill();
+      }
+    }
+  } else if (type === 'vangogn') {
+    // Pinceladas largas y curvadas, alta energía
+    const palette3 = ['#1B6CA8','#2980B9','#F1C40F','#F39C12','#27AE60','#E74C3C','#8E44AD'];
+    for (let i=0; i<2400; i++) {
+      const x = Math.random()*SIZE, y = Math.random()*SIZE;
+      const len = 10+Math.random()*22, thick = 2+Math.random()*5;
+      const angle = Math.random()*Math.PI;
+      ctx.save(); ctx.translate(x,y); ctx.rotate(angle);
+      ctx.strokeStyle = palette3[Math.floor(Math.random()*palette3.length)];
+      ctx.lineWidth = thick; ctx.globalAlpha = 0.8;
+      ctx.beginPath(); ctx.moveTo(-len/2,0); ctx.lineTo(len/2,0); ctx.stroke();
+      ctx.restore();
+    }
+  } else if (type === 'kandinsky') {
+    // Formas geométricas de colores primarios intensos
+    ctx.fillStyle = '#0a0a0a'; ctx.fillRect(0,0,SIZE,SIZE);
+    const shapes = [
+      {type:'circle', x:80, y:90, r:45, color:'#E74C3C'},
+      {type:'circle', x:190, y:70, r:30, color:'#3498DB'},
+      {type:'rect',   x:100,y:160, w:80, h:60, color:'#F1C40F'},
+      {type:'circle', x:60, y:190, r:25, color:'#2ECC71'},
+      {type:'circle', x:210,y:180, r:20, color:'#9B59B6'},
+    ];
+    shapes.forEach(s => {
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = s.color;
+      if (s.type==='circle') { ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fill(); }
+      else { ctx.fillRect(s.x,s.y,s.w,s.h); }
+    });
+    // Líneas
+    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth=2; ctx.globalAlpha=0.6;
+    [[20,20,230,230],[20,230,230,20],[128,10,128,246],[10,128,246,128]].forEach(([x1,y1,x2,y2]) => {
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    });
+  }
+
+  ctx.globalAlpha = 1;
+  document.getElementById('imgEmpty').style.display = 'none';
+  mainCanvas.width  = SIZE;
+  mainCanvas.height = SIZE;
+  mCtx.drawImage(offscreen, 0, 0);
+  setStatus(`Ejemplo "${type}" generado. Calculando…`, 'computing');
+  setTimeout(() => runAnalysis(mainCanvas), 60);
+}
+
+// ── Análisis completo ─────────────────────────────────────────────────────────
+function runAnalysis(canvas) {
+  const w = canvas.width, h = canvas.height;
+  const imageData = mCtx.getImageData(0, 0, w, h);
+  const data = imageData.data;
+
+  setProgress(5, 'Extrayendo luminancia…');
+
+  // Luminancia ITU-R BT.709
+  const lum = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    lum[i] = 0.2126 * data[i*4] + 0.7152 * data[i*4+1] + 0.0722 * data[i*4+2];
+  }
+
+  setProgress(15, 'Calculando irregularidad…');
+  const irregularity = calcIrregularity(lum, w, h);
+
+  setProgress(25, 'Calculando entropía Shannon…');
+  const normEntropy = calcEntropy(lum);
+
+  setProgress(35, 'Calculando varianza cromática…');
+  const colorStd = calcColorStd(data, w * h);
+
+  setProgress(45, 'Contraste local (bloques 8×8)…');
+  const localContrast = calcLocalContrast(lum, w, h);
+
+  setProgress(55, 'Filtro Sobel 3×3…');
+  const sobelDensity = calcSobel(lum, w, h);
+
+  setProgress(65, 'FFT 2D — reduciendo imagen…');
+  // FFT 2D — trabajamos con imagen reducida 128×128
+  const FFT_SIZE = 128;
+  const lumSmall = downsampleLuminance(lum, w, h, FFT_SIZE, FFT_SIZE);
+
+  setProgress(75, 'FFT 2D — calculando espectro de potencia…');
+  const { powerSpectrum, radialProfile, fftPeakFreq, fftHighEnergy } = computeFFT2D(lumSmall, FFT_SIZE);
+
+  setProgress(88, 'Renderizando espectro FFT…');
+  renderFFTSpectrum(powerSpectrum, FFT_SIZE);
+  renderRadialProfile(radialProfile, FFT_SIZE);
+
+  setProgress(95, 'Calculando esfuerzo…');
+  const effort = 0.5 * irregularity + 0.3 * normEntropy + 0.2 * colorStd;
+  const freq = 200 + irregularity * 800;
+
+  metrics = {
+    irregularity: Math.round(irregularity * 100),
+    entropy: Math.round(normEntropy * 100),
+    colorStd: Math.round(colorStd * 100),
+    localContrast: Math.round(localContrast * 100),
+    effort: Math.round(Math.min(effort, 1) * 100),
+    sobel: Math.round(sobelDensity * 100),
+    fftPeak: fftPeakFreq,   // 0..0.5 c/px
+    fftHigh: Math.round(fftHighEnergy * 100),  // %
+    freq: Math.round(freq * 10) / 10,
+  };
+
+  setProgress(100, 'Listo');
+  setTimeout(() => setProgress(0), 400);
+  updateUI(metrics);
+  setStatus(`Análisis completado · ${currentImageName || 'imagen'}`, 'ok');
+}
+
+// ── Métricas clásicas ─────────────────────────────────────────────────────────
+function calcIrregularity(lum, w, h) {
+  let total = 0, pairs = 0;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w - 1; x++) {
+      total += Math.abs(lum[y*w+x] - lum[y*w+x+1]);
+      pairs++;
+    }
+  }
+  for (let y = 0; y < h - 1; y++) {
+    for (let x = 0; x < w; x++) {
+      total += Math.abs(lum[y*w+x] - lum[(y+1)*w+x]);
+      pairs++;
+    }
+  }
+  return (total / pairs) / 255;
+}
+
+function calcEntropy(lum) {
+  const hist = new Float32Array(256);
+  lum.forEach(v => hist[Math.min(255, Math.floor(v))]++);
+  const total = lum.length;
+  let ent = 0;
+  hist.forEach(c => { if (c > 0) { const p = c/total; ent -= p * Math.log2(p); } });
+  return ent / 8;  // normalizado a 8 bits max
+}
+
+function calcColorStd(data, n) {
+  let sr=0,sg=0,sb=0, sr2=0,sg2=0,sb2=0;
+  for (let i=0;i<n;i++) {
+    const r=data[i*4], g=data[i*4+1], b=data[i*4+2];
+    sr+=r; sg+=g; sb+=b; sr2+=r*r; sg2+=g*g; sb2+=b*b;
+  }
+  const varR = sr2/n - (sr/n)**2;
+  const varG = sg2/n - (sg/n)**2;
+  const varB = sb2/n - (sb/n)**2;
+  return Math.sqrt((varR+varG+varB)/3) / 255;
+}
+
+function calcLocalContrast(lum, w, h) {
+  const BS = 8;
+  let total = 0, count = 0;
+  for (let by=0; by<h-BS+1; by+=BS) {
+    for (let bx=0; bx<w-BS+1; bx+=BS) {
+      let s=0, s2=0, n=0;
+      for (let y=by; y<by+BS; y++) {
+        for (let x=bx; x<bx+BS; x++) {
+          const v=lum[y*w+x]; s+=v; s2+=v*v; n++;
+        }
+      }
+      total += Math.sqrt(Math.max(0, s2/n - (s/n)**2));
+      count++;
+    }
+  }
+  return count ? (total/count)/255 : 0;
+}
+
+function calcSobel(lum, w, h) {
+  let total = 0, n = 0;
+  for (let y=1; y<h-1; y++) {
+    for (let x=1; x<w-1; x++) {
+      const tl=lum[(y-1)*w+x-1], tm=lum[(y-1)*w+x], tr=lum[(y-1)*w+x+1];
+      const ml=lum[y*w+x-1],                          mr=lum[y*w+x+1];
+      const bl=lum[(y+1)*w+x-1], bm=lum[(y+1)*w+x], br=lum[(y+1)*w+x+1];
+      const gx = -tl + tr - 2*ml + 2*mr - bl + br;
+      const gy = -tl - 2*tm - tr + bl + 2*bm + br;
+      total += Math.sqrt(gx*gx + gy*gy);
+      n++;
+    }
+  }
+  return n ? (total/n)/1442 : 0;
+}
+
+// ── Downsample luminancia ─────────────────────────────────────────────────────
+function downsampleLuminance(lum, srcW, srcH, dstW, dstH) {
+  const out = new Float32Array(dstW * dstH);
+  const scaleX = srcW / dstW, scaleY = srcH / dstH;
+  for (let y=0; y<dstH; y++) {
+    for (let x=0; x<dstW; x++) {
+      const sx = Math.floor(x * scaleX);
+      const sy = Math.floor(y * scaleY);
+      out[y*dstW+x] = lum[sy*srcW+sx];
+    }
+  }
+  return out;
+}
+
+// ── FFT 2D (Cooley-Tukey 1D aplicado por filas y columnas) ───────────────────
+// Implementación en JS puro — sin librerías externas.
+
+function fft1d(re, im) {
+  const n = re.length;
+  // Bit-reversal permutation
+  let j = 0;
+  for (let i=1; i<n; i++) {
+    let bit = n >> 1;
+    while (j & bit) { j ^= bit; bit >>= 1; }
+    j ^= bit;
+    if (i < j) {
+      [re[i],re[j]] = [re[j],re[i]];
+      [im[i],im[j]] = [im[j],im[i]];
+    }
+  }
+  // Butterfly stages
+  for (let len=2; len<=n; len<<=1) {
+    const ang = -2 * Math.PI / len;
+    const wRe = Math.cos(ang), wIm = Math.sin(ang);
+    for (let i=0; i<n; i+=len) {
+      let curRe=1, curIm=0;
+      for (let k=0; k<len/2; k++) {
+        const uRe=re[i+k], uIm=im[i+k];
+        const vRe=re[i+k+len/2]*curRe - im[i+k+len/2]*curIm;
+        const vIm=re[i+k+len/2]*curIm + im[i+k+len/2]*curRe;
+        re[i+k]         = uRe+vRe; im[i+k]         = uIm+vIm;
+        re[i+k+len/2]   = uRe-vRe; im[i+k+len/2]   = uIm-vIm;
+        const newCurRe = curRe*wRe - curIm*wIm;
+        curIm = curRe*wIm + curIm*wRe; curRe = newCurRe;
+      }
+    }
+  }
+}
+
+function computeFFT2D(lumSmall, N) {
+  // ── Construir matrices re/im ──
+  const re = new Float64Array(N * N);
+  const im = new Float64Array(N * N);
+  // Normalizar luminancia 0-255 → 0-1, y aplicar ventana Hann 2D
+  for (let y=0; y<N; y++) {
+    const wy = 0.5 - 0.5*Math.cos(2*Math.PI*y/N);
+    for (let x=0; x<N; x++) {
+      const wx = 0.5 - 0.5*Math.cos(2*Math.PI*x/N);
+      re[y*N+x] = (lumSmall[y*N+x]/255) * wx * wy;
+    }
+  }
+
+  // ── FFT por filas ──
+  const rowRe = new Float64Array(N);
+  const rowIm = new Float64Array(N);
+  for (let y=0; y<N; y++) {
+    for (let x=0; x<N; x++) { rowRe[x]=re[y*N+x]; rowIm[x]=im[y*N+x]; }
+    fft1d(rowRe, rowIm);
+    for (let x=0; x<N; x++) { re[y*N+x]=rowRe[x]; im[y*N+x]=rowIm[x]; }
+  }
+
+  // ── FFT por columnas ──
+  const colRe = new Float64Array(N);
+  const colIm = new Float64Array(N);
+  for (let x=0; x<N; x++) {
+    for (let y=0; y<N; y++) { colRe[y]=re[y*N+x]; colIm[y]=im[y*N+x]; }
+    fft1d(colRe, colIm);
+    for (let y=0; y<N; y++) { re[y*N+x]=colRe[y]; im[y*N+x]=colIm[y]; }
+  }
+
+  // ── Espectro de potencia (centrado, log) ──
+  const half = N >> 1;
+  const powerSpectrum = new Float32Array(N * N);
+  let maxPow = 0;
+  for (let y=0; y<N; y++) {
+    for (let x=0; x<N; x++) {
+      const cx = (x + half) % N;
+      const cy = (y + half) % N;
+      const pow = Math.log(1 + re[y*N+x]**2 + im[y*N+x]**2);
+      powerSpectrum[cy*N+cx] = pow;
+      if (pow > maxPow) maxPow = pow;
+    }
+  }
+
+  // ── Perfil radial ──
+  const radialProfile = new Float32Array(half + 1);
+  const radialCount   = new Int32Array(half + 1);
+  for (let y=0; y<N; y++) {
+    for (let x=0; x<N; x++) {
+      const dy = y - half, dx = x - half;
+      const r = Math.round(Math.sqrt(dx*dx + dy*dy));
+      if (r <= half) {
+        radialProfile[r] += powerSpectrum[y*N+x];
+        radialCount[r]++;
+      }
+    }
+  }
+  for (let r=0; r<=half; r++) {
+    if (radialCount[r] > 0) radialProfile[r] /= radialCount[r];
+  }
+
+  // ── Frecuencia pico (excluye DC: r=0) ──
+  let peakR = 1, peakVal = 0;
+  for (let r=1; r<=half; r++) {
+    if (radialProfile[r] > peakVal) { peakVal=radialProfile[r]; peakR=r; }
+  }
+  const fftPeakFreq = Math.round((peakR / half) * 100) / 100;  // 0..1 (normalizado)
+
+  // ── Energía en altas frecuencias (r > 0.1·half → freq espacial > 0.1 c/px) ──
+  const threshold = Math.round(0.1 * half);
+  let totalEnergy = 0, highEnergy = 0;
+  for (let r=1; r<=half; r++) {
+    totalEnergy += radialProfile[r];
+    if (r > threshold) highEnergy += radialProfile[r];
+  }
+  const fftHighEnergy = totalEnergy > 0 ? highEnergy / totalEnergy : 0;
+
+  return { powerSpectrum, maxPow, radialProfile, fftPeakFreq, fftHighEnergy };
+}
+
+// ── Renderizar espectro FFT ───────────────────────────────────────────────────
+function renderFFTSpectrum(powerSpectrum, N) {
+  const size = 200;
+  fftCanvas.width = fftCanvas.height = size;
+  const imgData = fCtx.createImageData(size, size);
+
+  let maxVal = 0;
+  powerSpectrum.forEach(v => { if (v > maxVal) maxVal = v; });
+
+  for (let y=0; y<size; y++) {
+    for (let x=0; x<size; x++) {
+      const sx = Math.floor(x * N / size);
+      const sy = Math.floor(y * N / size);
+      const norm = maxVal > 0 ? powerSpectrum[sy*N+sx] / maxVal : 0;
+      const i = (y*size+x)*4;
+      // Colormap: negro → violeta → amarillo (low→high energy)
+      if (norm < 0.5) {
+        imgData.data[i]   = Math.floor(norm * 2 * 149);  // R: 0→149
+        imgData.data[i+1] = 0;
+        imgData.data[i+2] = Math.floor(norm * 2 * 205);  // B: 0→205
+      } else {
+        const t = (norm - 0.5) * 2;
+        imgData.data[i]   = Math.floor(149 + t * (232 - 149));
+        imgData.data[i+1] = Math.floor(t * 201);
+        imgData.data[i+2] = Math.floor(205 * (1 - t));
+      }
+      imgData.data[i+3] = 255;
+    }
+  }
+  fCtx.putImageData(imgData, 0, 0);
+
+  // Cruz central (DC component)
+  const half = size >> 1;
+  fCtx.strokeStyle = 'rgba(255,255,255,0.2)';
+  fCtx.lineWidth = 1;
+  fCtx.beginPath(); fCtx.moveTo(half,0); fCtx.lineTo(half,size); fCtx.stroke();
+  fCtx.beginPath(); fCtx.moveTo(0,half); fCtx.lineTo(size,half); fCtx.stroke();
+}
+
+// ── Renderizar perfil radial ──────────────────────────────────────────────────
+function renderRadialProfile(radialProfile, N) {
+  const W = 200, H = 200;
+  fftRadialCvs.width = W; fftRadialCvs.height = H;
+  rCtx.fillStyle = '#000';
+  rCtx.fillRect(0, 0, W, H);
+
+  const half = N >> 1;
+  let maxVal = 0;
+  // Excluir DC (r=0) del max para mejor visualización
+  for (let r=1; r<=half; r++) { if (radialProfile[r]>maxVal) maxVal=radialProfile[r]; }
+  if (maxVal === 0) return;
+
+  // Grid
+  rCtx.strokeStyle = 'rgba(255,255,255,0.06)';
+  rCtx.lineWidth = 1;
+  [0.25,0.5,0.75].forEach(f => {
+    const y = H - f*H;
+    rCtx.beginPath(); rCtx.moveTo(0,y); rCtx.lineTo(W,y); rCtx.stroke();
+  });
+
+  // Umbral frecuencia alta (10% del rango)
+  const threshX = Math.round(0.1 * W);
+  rCtx.strokeStyle = 'rgba(149,117,205,0.4)';
+  rCtx.setLineDash([4,4]);
+  rCtx.beginPath(); rCtx.moveTo(threshX,0); rCtx.lineTo(threshX,H); rCtx.stroke();
+  rCtx.setLineDash([]);
+
+  // Área rellena
+  rCtx.beginPath();
+  rCtx.moveTo(0, H);
+  for (let r=1; r<=half; r++) {
+    const x = (r / half) * W;
+    const y = H - (radialProfile[r] / maxVal) * (H - 8);
+    if (r===1) rCtx.lineTo(x, y);
+    else rCtx.lineTo(x, y);
+  }
+  rCtx.lineTo(W, H);
+  rCtx.closePath();
+  const grad = rCtx.createLinearGradient(0,0,W,0);
+  grad.addColorStop(0, 'rgba(77,182,172,0.3)');
+  grad.addColorStop(0.1, 'rgba(149,117,205,0.3)');
+  grad.addColorStop(1, 'rgba(232,201,106,0.3)');
+  rCtx.fillStyle = grad;
+  rCtx.fill();
+
+  // Línea
+  rCtx.beginPath();
+  for (let r=1; r<=half; r++) {
+    const x = (r / half) * W;
+    const y = H - (radialProfile[r] / maxVal) * (H - 8);
+    r===1 ? rCtx.moveTo(x,y) : rCtx.lineTo(x,y);
+  }
+  rCtx.strokeStyle = 'rgba(149,117,205,0.9)';
+  rCtx.lineWidth = 2;
+  rCtx.stroke();
+
+  // Etiquetas
+  rCtx.fillStyle = 'rgba(138,128,112,0.7)';
+  rCtx.font = '9px IBM Plex Mono, monospace';
+  rCtx.fillText('DC', 2, H-2);
+  rCtx.fillText('0.5 c/px', W-46, H-2);
+  rCtx.fillStyle = 'rgba(149,117,205,0.6)';
+  rCtx.fillText('↑ alta frec.', threshX+3, 14);
+}
+
+// ── Radar chart ───────────────────────────────────────────────────────────────
+function drawRadar(m) {
+  const W = 280, H = 280;
+  radarCanvas.width = W; radarCanvas.height = H;
+  const cx = W/2, cy = H/2, R = 100;
+  radCtx.clearRect(0,0,W,H);
+
+  const labels = ['Irr','Ent','σRGB','Cont','Esf','Sobel','FFT\nPico','FFT\nAlta'];
+  const values = [
+    m.irregularity/100, m.entropy/100, m.colorStd/100,
+    m.localContrast/100, m.effort/100, m.sobel/100,
+    m.fftPeak*2,      // pico 0..0.5 → 0..1
+    m.fftHigh/100
+  ];
+  const n = labels.length;
+
+  // Fondo en anillos
+  [0.25,0.5,0.75,1].forEach(scale => {
+    radCtx.beginPath();
+    for (let i=0;i<n;i++) {
+      const angle = (i/n)*2*Math.PI - Math.PI/2;
+      const x = cx + R*scale*Math.cos(angle);
+      const y = cy + R*scale*Math.sin(angle);
+      i===0 ? radCtx.moveTo(x,y) : radCtx.lineTo(x,y);
+    }
+    radCtx.closePath();
+    radCtx.strokeStyle = scale===1
+      ? 'rgba(232,201,106,0.2)'
+      : 'rgba(255,255,255,0.05)';
+    radCtx.lineWidth = 1;
+    radCtx.stroke();
+  });
+
+  // Ejes
+  for (let i=0;i<n;i++) {
+    const angle = (i/n)*2*Math.PI - Math.PI/2;
+    radCtx.beginPath();
+    radCtx.moveTo(cx,cy);
+    radCtx.lineTo(cx+R*Math.cos(angle), cy+R*Math.sin(angle));
+    radCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+    radCtx.lineWidth = 1;
+    radCtx.stroke();
+  }
+
+  // Polígono FFT (últimas 2 métricas en violeta)
+  // Dibujamos todo el polígono pero con gradiente de color
+  radCtx.beginPath();
+  for (let i=0;i<n;i++) {
+    const angle = (i/n)*2*Math.PI - Math.PI/2;
+    const r = values[i]*R;
+    const x = cx + r*Math.cos(angle);
+    const y = cy + r*Math.sin(angle);
+    i===0 ? radCtx.moveTo(x,y) : radCtx.lineTo(x,y);
+  }
+  radCtx.closePath();
+  radCtx.fillStyle = 'rgba(232,201,106,0.12)';
+  radCtx.fill();
+  radCtx.strokeStyle = 'rgba(232,201,106,0.7)';
+  radCtx.lineWidth = 1.5;
+  radCtx.stroke();
+
+  // Puntos — FFT en violeta
+  for (let i=0;i<n;i++) {
+    const angle = (i/n)*2*Math.PI - Math.PI/2;
+    const r = values[i]*R;
+    const x = cx + r*Math.cos(angle);
+    const y = cy + r*Math.sin(angle);
+    radCtx.beginPath();
+    radCtx.arc(x,y,3,0,Math.PI*2);
+    radCtx.fillStyle = i>=6 ? '#9575cd' : '#e8c96a';
+    radCtx.fill();
+  }
+
+  // Etiquetas
+  radCtx.font = '10px IBM Plex Mono, monospace';
+  radCtx.textAlign = 'center';
+  for (let i=0;i<n;i++) {
+    const angle = (i/n)*2*Math.PI - Math.PI/2;
+    const lx = cx + (R+20)*Math.cos(angle);
+    const ly = cy + (R+20)*Math.sin(angle);
+    radCtx.fillStyle = i>=6 ? 'rgba(149,117,205,0.85)' : 'rgba(138,128,112,0.85)';
+    const lines = labels[i].split('\n');
+    if (lines.length===1) {
+      radCtx.fillText(labels[i], lx, ly+4);
+    } else {
+      radCtx.fillText(lines[0], lx, ly);
+      radCtx.fillText(lines[1], lx, ly+12);
+    }
+  }
+}
+
+// ── Actualizar UI completa ────────────────────────────────────────────────────
+function updateUI(m) {
+  // Métricas clásicas
+  setMetric('Irr', m.irregularity, m.irregularity);
+  setMetric('Ent', m.entropy, m.entropy);
+  setMetric('Rgb', m.colorStd, m.colorStd);
+  setMetric('Cont', m.localContrast, m.localContrast);
+  setMetric('Eff', m.effort, m.effort);
+  setMetric('Sobel', m.sobel, m.sobel);
+
+  // FFT métricas
+  const fftPeakPct = Math.round(m.fftPeak * 200);  // 0..0.5 → 0..100%
+  document.getElementById('mFftPeak').textContent = m.fftPeak.toFixed(2) + ' c/px';
+  document.getElementById('bFftPeak').style.width = fftPeakPct + '%';
+  document.getElementById('mFftHigh').textContent = m.fftHigh + '%';
+  document.getElementById('bFftHigh').style.width = m.fftHigh + '%';
+
+  // Token sonoro
+  document.getElementById('tokenFreq').textContent = m.freq + ' Hz';
+  const freqPct = Math.max(0, Math.min(100, ((m.freq - 209) / (277 - 209)) * 100));
+  document.getElementById('freqBarFill').style.width = freqPct + '%';
+  document.getElementById('freqBarMarker').style.left = freqPct + '%';
+  document.getElementById('tokenSig').textContent =
+    `f = ${m.freq} Hz · Irr = ${m.irregularity}% · Ent = ${m.entropy}% · σRGB = ${m.colorStd}% · Esf = ${m.effort}% · Sobel = ${m.sobel}% · FFTpico = ${m.fftPeak.toFixed(2)} · FFTalta = ${m.fftHigh}%`;
+
+  // Tabla accesible
+  updateTable(m);
+
+  // Radar
+  drawRadar(m);
+
+  // Interpretación
+  updateInterpretation(m);
+
+  // Audio controls
+  document.getElementById('playBtn').disabled = false;
+  document.getElementById('speakBtn').disabled = false;
+}
+
+function setMetric(id, val, pct) {
+  document.getElementById('m' + id).textContent = val + '%';
+  document.getElementById('b' + id).style.width = pct + '%';
+}
+
+function updateTable(m) {
+  document.getElementById('metricsTableBody').innerHTML = `
+    <tr><td>Irregularidad</td><td>${m.irregularity}%</td><td>Energía de alta frecuencia entre píxeles vecinos</td></tr>
+    <tr><td>Entropía Shannon</td><td>${m.entropy}%</td><td>Riqueza informativa del histograma de luminancia</td></tr>
+    <tr><td>Varianza cromática</td><td>${m.colorStd}%</td><td>Dispersión de los canales RGB</td></tr>
+    <tr><td>Contraste local</td><td>${m.localContrast}%</td><td>Varianza de luminancia en bloques 8×8</td></tr>
+    <tr><td>Esfuerzo</td><td>${m.effort}%</td><td>Complejidad ponderada (0.5·Irr + 0.3·Ent + 0.2·σRGB)</td></tr>
+    <tr><td>Densidad bordes (Sobel)</td><td>${m.sobel}%</td><td>Gradientes de luminancia por filtro Sobel 3×3</td></tr>
+    <tr class="fft-row"><td>FFT · Freq. espacial pico</td><td>${m.fftPeak.toFixed(2)} c/px</td><td>Frecuencia espacial dominante — 0=DC, 0.5=máx. Alta = textura fina</td></tr>
+    <tr class="fft-row"><td>FFT · Energía alta frec.</td><td>${m.fftHigh}%</td><td>Porcentaje de energía en frec. espaciales >0.1 c/px — alto = puntillismo real</td></tr>
+    <tr><td>Token sonoro</td><td>${m.freq} Hz</td><td>F = 200 + Irr×800 · rango dataset real: 209–277 Hz</td></tr>
+  `;
+}
+
+// ── Interpretación automática ─────────────────────────────────────────────────
+function updateInterpretation(m) {
+  let style = '', text = '', fftText = '';
+  const irr = m.irregularity, fftH = m.fftHigh, fftP = m.fftPeak;
+
+  // Clasificación por irregularidad (basada en dataset real N=47)
+  if (irr <= 2) {
+    style = 'Suprematismo / Abstracción geométrica';
+    text = 'Irregularidad mínima (zona 0–2%). Superficies planas, sin textura perceptible. '
+         + 'Sonido: tono puro y grave. Perfil Malevich, Rothko, Albers. '
+         + `Sobel confirma: Δ=${Math.abs(irr - m.sobel)}% entre Irr y Sobel.`;
+  } else if (irr <= 5) {
+    style = 'Barroco / Renacimiento / Impresionismo temprano';
+    text = 'Irregularidad baja-media (3–5%). Pincelada suave y controlada. '
+         + 'Sonido: tono medio con leve riqueza tímbrica. Perfil Vermeer, Rembrandt, Botticelli. '
+         + `Sobel confirma: Δ=${Math.abs(irr - m.sobel)}%.`;
+  } else if (irr <= 9) {
+    style = 'Post-impresionismo / Expresionismo';
+    text = 'Irregularidad media-alta (6–9%). Pincelada activa, textura perceptible. '
+         + 'Sonido: tono medio con armónicos. Perfil Cézanne, Goya, Van Gogh, Degas. '
+         + `Sobel confirma: Δ=${Math.abs(irr - m.sobel)}%.`;
+  } else {
+    style = 'Abstracción máxima / Alta textura';
+    text = 'Irregularidad alta (>10%). Máxima energía de alta frecuencia. '
+         + 'Sonido: agudo y complejo. Perfil Kandinsky, Klimt, pincelada densa. '
+         + `Sobel confirma: Δ=${Math.abs(irr - m.sobel)}%.`;
+  }
+
+  document.getElementById('interpStyle').textContent = style;
+  document.getElementById('interpText').textContent = text;
+
+  // Interpretación FFT
+  if (fftH < 15) {
+    fftText = `FFT: energía alta frec. baja (${fftH}%). El espectro concentra potencia en frecuencias bajas → '
+             + 'estructuras grandes, transiciones suaves. No es puntillismo.`;
+  } else if (fftH < 35) {
+    fftText = `FFT: energía alta frec. media (${fftH}%). Mezcla de texturas finas y grandes. '
+             + 'Posible impresionismo o pincelada densa. Freq. pico: ${fftP.toFixed(2)} c/px.`;
+  } else if (fftH < 55) {
+    fftText = `FFT: energía alta frec. notable (${fftH}%). Textura fina presente — compatible con puntillismo '
+             + 'o pincelada muy densa. Freq. pico: ${fftP.toFixed(2)} c/px.`;
+  } else {
+    fftText = `FFT: alta energía en frecuencias altas (${fftH}%). Señal clara de textura repetitiva a escala fina. '
+             + 'Puntillismo o patrón regular muy probable. Freq. pico: ${fftP.toFixed(2)} c/px — '
+             + `una textura dominante cada ${fftP>0 ? Math.round(1/fftP) : '?'} píxeles aprox.`;
+  }
+  document.getElementById('fftInterpText').textContent = fftText;
+}
+
+// ── Audio ─────────────────────────────────────────────────────────────────────
+function toggleSound() {
+  if (isPlaying) { stopSound(); return; }
+  if (!metrics) return;
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  oscillator = audioCtx.createOscillator();
+  gainNode   = audioCtx.createGain();
+  oscillator.connect(gainNode);
+  gainNode.connect(audioCtx.destination);
+  oscillator.type = 'sine';
+  oscillator.frequency.setValueAtTime(metrics.freq, audioCtx.currentTime);
+  gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+  gainNode.gain.linearRampToValueAtTime(0.18, audioCtx.currentTime + 0.08);
+  oscillator.start();
+  isPlaying = true;
+  document.getElementById('playBtn').textContent = '⏸ Pausar';
+  document.getElementById('playBtn').classList.add('playing');
+  document.getElementById('stopBtn').disabled = false;
+  announce(`Reproduciendo ${metrics.freq} Hz`);
+}
+
+function stopSound() {
+  if (!oscillator) return;
+  gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.08);
+  oscillator.stop(audioCtx.currentTime + 0.09);
+  oscillator = null; gainNode = null;
+  isPlaying = false;
+  document.getElementById('playBtn').textContent = '▶ Escuchar irregularidad';
+  document.getElementById('playBtn').classList.remove('playing');
+  document.getElementById('stopBtn').disabled = true;
+}
+
+// ── Speak profile ─────────────────────────────────────────────────────────────
+function speakProfile() {
+  if (!metrics || !window.speechSynthesis) return;
+  const m = metrics;
+  const txt = `Análisis de imagen: ${currentImageName || 'imagen cargada'}. 
+    Token sonoro: ${m.freq} hercios. 
+    Irregularidad: ${m.irregularity} por ciento. 
+    Entropía: ${m.entropy} por ciento. 
+    Varianza cromática: ${m.colorStd} por ciento. 
+    Sobel: ${m.sobel} por ciento. 
+    FFT energía alta frecuencia: ${m.fftHigh} por ciento. 
+    Frecuencia espacial pico: ${m.fftPeak.toFixed(2)} ciclos por píxel. 
+    ${m.fftHigh > 40 ? 'Señal de puntillismo detectada por FFT 2D.' : 'Sin señal de puntillismo por FFT 2D.'}
+    Interpretación: ${document.getElementById('interpStyle').textContent}.`;
+  const utt = new SpeechSynthesisUtterance(txt);
+  utt.lang = 'es-ES'; utt.rate = 0.95;
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utt);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+// Cargar Seurat por defecto para mostrar FFT en acción
+window.addEventListener('load', () => {
+  setTimeout(() => loadExample('seurat'), 300);
+});
+</script>
+</body>
+</html>
