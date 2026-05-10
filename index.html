@@ -1,19 +1,1437 @@
-El Zenodo está bien estructurado y los datos son sólidos. Pero hay una cosa que me llama la atención:
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>Argira · Analizador de Imagen</title>
+<meta name="description" content="Argira: analizador científico de imágenes. Irregularidad, entropía Shannon, Sobel y firma acústica. ICAD 2026.">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Cinzel:wght@400;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&display=swap" rel="stylesheet">
+<style>
+/* ── Variables (sistema Argira) ── */
+:root {
+  --gold: #e8c96a;
+  --gold-dim: #c9a84c;
+  --gold-border: rgba(232,201,106,0.25);
+  --bg: #0a0a08;
+  --surface: #131310;
+  --surface2: #1a1a16;
+  --text: #f0ead8;
+  --text-body: #d8d0bc;
+  --text-dim: #a89e88;
+  --border: rgba(232,201,106,0.18);
+  --green: #4caf50;
+  --red: #ef5350;
+  --focus: #ffdd44;
+  --radius: 4px;
+}
 
-**v13 tiene fecha May 9, 2026 y v14 tiene fecha April 9, 2026.**
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
 
-v14 es cronológicamente anterior a v13 en las fechas mostradas. Eso es un artefacto de Zenodo (las versiones se ordenan por número, no siempre por fecha de publicación real), pero visualmente confunde. Si alguien lo revisa en detalle puede preguntarse qué pasó.
+body {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 16px;
+  line-height: 1.7;
+  background: var(--bg);
+  color: var(--text-body);
+  min-height: 100vh;
+}
 
----
+/* Grain overlay */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 0; opacity: 0.3;
+}
 
-Sobre el contenido en sí — lo que veo bien:
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
 
-El r=0.9289 con test de permutaciones 0/1000 es el número fuerte. Está bien destacado. El hecho de incluir también los resultados negativos (r(Dv,Ds)=0.0229, r(tempo,Ds)=0.3004) es científicamente honesto y le da credibilidad al conjunto.
+/* ── Nav ── */
+.site-nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(10,10,8,0.95); backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border); padding: 0 24px;
+}
+.nav-inner {
+  max-width: 1100px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 52px;
+}
+.nav-brand {
+  font-family: 'Cinzel', serif; font-size: 0.8rem; letter-spacing: 0.28em;
+  color: var(--gold); text-decoration: none;
+}
+.nav-back {
+  font-family: 'Cinzel', serif; font-size: 0.7rem; letter-spacing: 0.18em;
+  color: var(--text-dim); text-decoration: none;
+}
+.nav-back:hover { color: var(--gold); }
 
-Lo que mejoraría para una v15:
+/* ── Header ── */
+.page-header {
+  text-align: center;
+  padding: 60px 24px 48px;
+  background: radial-gradient(ellipse 70% 50% at 50% 0%, rgba(232,201,106,0.07) 0%, transparent 70%);
+  border-bottom: 1px solid var(--border);
+}
+.header-eyebrow {
+  font-family: 'Cinzel', serif; font-size: 0.72rem; letter-spacing: 0.35em;
+  color: var(--gold-dim); text-transform: uppercase; margin-bottom: 16px;
+}
+.page-title {
+  font-family: 'Cinzel', serif; font-size: clamp(1.8rem, 5vw, 3rem);
+  font-weight: 600; letter-spacing: 0.12em; color: var(--gold);
+  text-shadow: 0 0 60px rgba(232,201,106,0.25);
+  margin-bottom: 12px;
+}
+.page-sub {
+  font-family: 'Cormorant Garamond', serif; font-size: 1.15rem;
+  font-style: italic; font-weight: 300; color: var(--text-dim);
+  max-width: 560px; margin: 0 auto;
+}
 
-**El README** debería mencionar el analizador standalone y la correlación Sobel-Irregularidad r=0.9562 que calculaste sobre las 47 obras. Eso es un hallazgo nuevo que no está en ninguna versión actual de Zenodo y merece estar documentado.
+/* ── Layout principal ── */
+.main-wrap {
+  max-width: 1100px; margin: 0 auto;
+  padding: 40px 16px 80px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
 
-**La descripción** dice "pruebas" en el título que me mandas — supongo que eso es solo el contexto de esta conversación, no lo que está publicado.
+@media (max-width: 760px) {
+  .main-wrap { grid-template-columns: 1fr; }
+}
 
-¿Quieres preparar la v15 con el analizador corregido (sin FFT) y el README actualizado?
+/* ── Cards ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.card-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.card-title {
+  font-family: 'Cinzel', serif; font-size: 0.78rem;
+  letter-spacing: 0.22em; color: var(--gold);
+  text-transform: uppercase;
+}
+.card-body { padding: 20px; }
+
+/* ── Imagen ── */
+.image-preview-wrap {
+  position: relative;
+  background: #0d0d0a;
+  border-bottom: 1px solid var(--border);
+  min-height: 280px;
+  display: flex; align-items: center; justify-content: center;
+}
+#imageCanvas {
+  display: block;
+  max-width: 100%;
+  max-height: 360px;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+.canvas-placeholder {
+  position: absolute;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 10px; color: var(--text-dim);
+  font-family: 'Cinzel', serif; font-size: 0.72rem;
+  letter-spacing: 0.2em; text-transform: uppercase;
+}
+.canvas-placeholder .icon { font-size: 2.5rem; opacity: 0.4; }
+#imageCanvas.has-image + .canvas-placeholder { display: none; }
+
+/* ── Fuentes de imagen ── */
+.source-tabs {
+  display: flex; border-bottom: 1px solid var(--border);
+}
+.source-tab {
+  flex: 1;
+  padding: 10px 6px;
+  font-family: 'Cinzel', serif; font-size: 0.65rem;
+  letter-spacing: 0.15em; text-transform: uppercase;
+  color: var(--text-dim); background: transparent;
+  border: none; cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+.source-tab:hover { color: var(--gold); }
+.source-tab.active { color: var(--gold); border-bottom-color: var(--gold); background: rgba(232,201,106,0.04); }
+
+.source-panel { display: none; padding: 16px 20px; }
+.source-panel.active { display: block; }
+
+/* Ejemplos generados */
+.examples-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+}
+.example-btn {
+  padding: 10px 6px;
+  font-family: 'Cinzel', serif; font-size: 0.62rem;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-dim); background: var(--surface2);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  cursor: pointer; transition: all 0.2s; text-align: center;
+}
+.example-btn:hover { border-color: var(--gold-dim); color: var(--gold); }
+.example-btn .ex-icon { font-size: 1.4rem; display: block; margin-bottom: 4px; }
+
+/* Upload */
+.upload-zone {
+  border: 2px dashed rgba(232,201,106,0.25);
+  border-radius: var(--radius);
+  padding: 28px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.upload-zone:hover, .upload-zone.drag-over {
+  border-color: var(--gold-dim);
+  background: rgba(232,201,106,0.04);
+}
+.upload-zone p {
+  font-family: 'Cinzel', serif; font-size: 0.72rem;
+  letter-spacing: 0.18em; color: var(--text-dim);
+  text-transform: uppercase;
+}
+.upload-icon { font-size: 2rem; margin-bottom: 8px; opacity: 0.5; }
+
+/* URL */
+.url-form { display: flex; gap: 8px; flex-wrap: wrap; }
+.url-input {
+  flex: 1; min-width: 0;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text);
+  padding: 10px 14px; font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8rem; outline: none;
+}
+.url-input:focus { border-color: var(--gold-dim); }
+.url-input::placeholder { color: var(--text-dim); }
+.url-btn {
+  padding: 10px 18px;
+  font-family: 'Cinzel', serif; font-size: 0.68rem;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--gold); background: rgba(232,201,106,0.08);
+  border: 1px solid var(--gold-dim); border-radius: var(--radius);
+  cursor: pointer; transition: all 0.2s; white-space: nowrap;
+}
+.url-btn:hover { background: var(--gold); color: #000; }
+
+/* ── Sonido ── */
+.sound-row {
+  display: flex; gap: 8px; padding: 16px 20px;
+  border-top: 1px solid var(--border); flex-wrap: wrap;
+}
+.sound-btn {
+  flex: 1;
+  padding: 10px 14px;
+  font-family: 'Cinzel', serif; font-size: 0.68rem;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  border-radius: var(--radius); cursor: pointer;
+  transition: all 0.2s; border: 1.5px solid;
+}
+.sound-btn-play {
+  color: var(--gold); border-color: var(--gold-dim);
+  background: rgba(232,201,106,0.08);
+}
+.sound-btn-play:hover, .sound-btn-play.playing {
+  background: var(--gold); color: #000;
+}
+.sound-btn-stop {
+  color: var(--text-dim); border-color: var(--border);
+  background: transparent;
+}
+.sound-btn-stop:hover { border-color: var(--text-dim); color: var(--text); }
+
+/* Indicador frecuencia */
+.freq-display {
+  padding: 10px 20px;
+  background: #0d0d0a;
+  border-top: 1px solid var(--border);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem; color: var(--text-dim);
+  display: flex; align-items: center; gap: 10px;
+}
+.freq-value { color: var(--gold); font-size: 1rem; font-weight: 500; }
+.freq-bar {
+  flex: 1; height: 3px;
+  background: rgba(232,201,106,0.12);
+  border-radius: 2px; overflow: hidden;
+}
+.freq-bar-fill {
+  height: 100%;
+  background: linear-gradient(to right, #c9a84c, #e8c96a);
+  border-radius: 2px;
+  transition: width 0.5s ease;
+  width: 0%;
+}
+
+/* ── Métricas numéricas ── */
+.metrics-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 1px; background: var(--border);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.metric-cell {
+  background: var(--surface);
+  padding: 16px 18px;
+  position: relative;
+}
+.metric-cell-wide {
+  grid-column: 1 / -1;
+}
+.metric-label-sm {
+  font-family: 'Cinzel', serif; font-size: 0.62rem;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--text-dim); margin-bottom: 6px;
+  display: flex; align-items: center; gap: 6px;
+}
+.metric-val {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 1.6rem; font-weight: 500;
+  color: var(--gold); line-height: 1;
+}
+.metric-bar {
+  height: 2px; margin-top: 8px;
+  background: rgba(232,201,106,0.1); border-radius: 1px;
+  overflow: hidden;
+}
+.metric-bar-fill {
+  height: 100%;
+  background: linear-gradient(to right, var(--gold-dim), var(--gold));
+  border-radius: 1px;
+  transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+  width: 0%;
+}
+
+/* ── Radar chart ── */
+.radar-wrap {
+  padding: 20px;
+  display: flex; flex-direction: column; align-items: center;
+}
+#radarCanvas {
+  width: 100%; max-width: 320px; height: auto;
+}
+
+/* ── Interpretación ── */
+.interpretation {
+  padding: 20px;
+  border-top: 1px solid var(--border);
+}
+.interp-title {
+  font-family: 'Cinzel', serif; font-size: 0.68rem;
+  letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--gold-dim); margin-bottom: 12px;
+}
+.interp-text {
+  font-family: 'Cormorant Garamond', serif; font-size: 1.05rem;
+  font-style: italic; color: var(--text-body); line-height: 1.8;
+}
+.interp-style {
+  margin-top: 10px;
+  display: inline-block;
+  font-family: 'Cinzel', serif; font-size: 0.65rem;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--gold);
+  padding: 4px 12px;
+  border: 1px solid var(--gold-border);
+  border-radius: 40px;
+}
+
+/* ── Fórmulas ── */
+.formulas {
+  padding: 16px 20px;
+  background: #0d0d0a;
+  border-top: 1px solid var(--border);
+}
+.formula-label {
+  font-family: 'Cinzel', serif; font-size: 0.62rem;
+  letter-spacing: 0.25em; text-transform: uppercase;
+  color: var(--gold-dim); margin-bottom: 10px;
+}
+.formula-line {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem; color: #a0a090;
+  line-height: 1.8;
+}
+.formula-line em { color: var(--gold-dim); font-style: normal; }
+
+/* ── Token sonoro ── */
+.sonic-token {
+  margin: 16px 20px;
+  padding: 14px 16px;
+  background: rgba(232,201,106,0.05);
+  border: 1px solid var(--gold-border);
+  border-radius: var(--radius);
+}
+.token-label {
+  font-family: 'Cinzel', serif; font-size: 0.62rem;
+  letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--gold-dim); margin-bottom: 6px;
+}
+.token-value {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.85rem; color: var(--text);
+}
+
+/* ── Estado inicial (sin imagen) ── */
+.empty-state {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 48px 24px; text-align: center; gap: 12px;
+}
+.empty-icon { font-size: 3rem; opacity: 0.2; }
+.empty-text {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.05rem; font-style: italic;
+  color: var(--text-dim);
+}
+
+/* Tooltip info */
+.info-dot {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px;
+  border-radius: 50%; background: rgba(232,201,106,0.15);
+  color: var(--gold-dim); font-size: 9px; cursor: help;
+  font-family: 'IBM Plex Mono', monospace; font-style: normal;
+  flex-shrink: 0;
+}
+
+/* Loading */
+.loading-bar {
+  height: 2px; background: var(--border);
+  overflow: hidden; display: none;
+}
+.loading-bar.active { display: block; }
+.loading-bar::after {
+  content: '';
+  display: block; height: 100%;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  animation: loading 1.2s ease-in-out infinite;
+  width: 40%;
+}
+@keyframes loading {
+  0% { transform: translateX(-150%); }
+  100% { transform: translateX(350%); }
+}
+
+/* Screen reader only */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
+/* Speak button (igual que museo) */
+.speak-btn {
+  display: flex; align-items: center; justify-content: center;
+  gap: 10px; width: calc(100% - 40px); margin: 0 20px 20px;
+  padding: 11px 16px;
+  font-size: 0.82rem; font-weight: 600;
+  font-family: 'Cinzel', serif; letter-spacing: 0.14em; text-transform: uppercase;
+  background: rgba(232,201,106,0.08); border: 1.5px solid var(--gold-dim);
+  border-radius: 48px; color: var(--gold);
+  transition: all 0.2s; cursor: pointer;
+}
+.speak-btn:hover, .speak-btn:focus-visible { background: var(--gold); color: #000; }
+.speak-btn.speaking { background: var(--gold); color: #000; border-color: #fff; }
+
+/* Tabla ARIA (invisible visualmente) */
+.radar-table {
+  position: absolute; width: 1px; height: 1px;
+  overflow: hidden; clip: rect(0,0,0,0);
+  white-space: nowrap;
+}
+
+/* Footer */
+.page-footer {
+  text-align: center; padding: 32px 24px;
+  border-top: 1px solid var(--border);
+  font-family: 'Cinzel', serif; font-size: 0.68rem;
+  letter-spacing: 0.22em; color: var(--text-dim);
+  text-transform: uppercase;
+}
+.page-footer a { color: var(--gold-dim); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<!-- Live region para anuncios dinámicos (screen readers) -->
+<div aria-live="polite" aria-atomic="true" class="sr-only" id="live-region"></div>
+
+<!-- Nav -->
+<nav class="site-nav" aria-label="Navegación">
+  <div class="nav-inner">
+    <a href="#" class="nav-brand">ARGIRA</a>
+    <a href="index.html" class="nav-back">← Museo Sonoro</a>
+  </div>
+</nav>
+
+<!-- Header -->
+<header class="page-header">
+  <p class="header-eyebrow">Argira · Herramienta de Análisis</p>
+  <h1 class="page-title">Analizador de Imagen</h1>
+  <p class="page-sub">Lo que el ojo no ve, el algoritmo lo mide. Lo que el algoritmo mide, el sonido lo revela.</p>
+</header>
+
+<div class="loading-bar" id="loadingBar"></div>
+
+<!-- Main grid -->
+<div class="main-wrap">
+
+  <!-- Columna izquierda: imagen + fuentes -->
+  <div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Imagen analizada</span>
+      </div>
+
+      <!-- Preview canvas -->
+      <div class="image-preview-wrap">
+        <canvas id="imageCanvas" width="400" height="300"></canvas>
+        <div class="canvas-placeholder" id="canvasPlaceholder">
+          <span class="icon">🖼</span>
+          <span>Selecciona una imagen</span>
+        </div>
+      </div>
+
+      <!-- Tabs de fuente -->
+      <div class="source-tabs" role="tablist" aria-label="Fuente de imagen">
+        <button class="source-tab active" role="tab" aria-selected="true" data-tab="examples">Ejemplos</button>
+        <button class="source-tab" role="tab" aria-selected="false" data-tab="upload">Subir</button>
+        <button class="source-tab" role="tab" aria-selected="false" data-tab="url">URL</button>
+      </div>
+
+      <!-- Panel: Ejemplos generados -->
+      <div class="source-panel active" id="panel-examples">
+        <div class="examples-grid">
+          <button class="example-btn" id="btnMalevich">
+            <span class="ex-icon">⬜</span>Malevich<br>Blanco/Blanco
+          </button>
+          <button class="example-btn" id="btnMonet">
+            <span class="ex-icon">🌿</span>Monet<br>Amapolas
+          </button>
+          <button class="example-btn" id="btnSeurat">
+            <span class="ex-icon">🎨</span>Seurat<br>Puntillismo
+          </button>
+          <button class="example-btn" id="btnKandinsky">
+            <span class="ex-icon">🔴</span>Kandinsky<br>Composición
+          </button>
+          <button class="example-btn" id="btnRothko">
+            <span class="ex-icon">🟫</span>Rothko<br>Campo de color
+          </button>
+          <button class="example-btn" id="btnVanGogh">
+            <span class="ex-icon">🌀</span>Van Gogh<br>Noche estrellada
+          </button>
+        </div>
+      </div>
+
+      <!-- Panel: Subir archivo -->
+      <div class="source-panel" id="panel-upload">
+        <div class="upload-zone" id="uploadZone" role="button" tabindex="0" aria-label="Zona de carga de imagen">
+          <div class="upload-icon">📂</div>
+          <p>Arrastra una imagen aquí</p>
+          <p style="margin-top:6px; font-size:0.62rem; opacity:0.6">o haz clic para seleccionar · JPG, PNG</p>
+        </div>
+        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/jpg,image/webp" style="display:none" aria-label="Seleccionar archivo de imagen">
+      </div>
+
+      <!-- Panel: URL -->
+      <div class="source-panel" id="panel-url">
+        <div class="url-form">
+          <input type="url" class="url-input" id="urlInput" placeholder="https://..." aria-label="URL de la imagen">
+          <button class="url-btn" id="urlBtn">Cargar</button>
+        </div>
+        <p style="margin-top:10px; font-size:0.72rem; color:var(--text-dim); line-height:1.5;">
+          La imagen debe permitir acceso CORS. Wikimedia Commons funciona bien.
+        </p>
+      </div>
+
+      <!-- Sonido -->
+      <div class="sound-row">
+        <button class="sound-btn sound-btn-play" id="btnPlay" aria-label="Escuchar sonificación">
+          ▶ Escuchar irregularidad
+        </button>
+        <button class="sound-btn sound-btn-stop" id="btnStop" aria-label="Parar sonido">
+          ■ Parar
+        </button>
+      </div>
+
+      <!-- Indicador de frecuencia -->
+      <div class="freq-display" id="freqDisplay">
+        <span>Token sonoro:</span>
+        <span class="freq-value" id="freqVal">— Hz</span>
+        <div class="freq-bar"><div class="freq-bar-fill" id="freqBarFill"></div></div>
+      </div>
+    </div>
+
+    <!-- Token sonoro -->
+    <div class="card" style="margin-top:12px;">
+      <div class="sonic-token">
+        <div class="token-label">Firma acústica</div>
+        <div class="token-value" id="tokenDesc">Carga una imagen para ver su token sonoro.</div>
+      </div>
+      <div class="formulas">
+        <div class="formula-label">Fórmulas aplicadas</div>
+        <div class="formula-line">
+          <em>Irregularidad</em> = (1/N) · Σ|L(i,j)−L(i+1,j)| + |L(i,j)−L(i,j+1)| / 255<br>
+          <em>Entropía</em> = −Σ p(g)·log₂p(g) &nbsp; [g=0..255, normalizada a 8 bits]<br>
+          <em>Varianza RGB</em> = √( σ²R + σ²G + σ²B ) / 3 / 255<br>
+          <em>Esfuerzo</em> = 0.5·Irr + 0.3·Ent + 0.2·σRGB<br>
+          <em>Contraste local</em> = σ(bloques 8×8 de luminancia) / 255<br>
+          <em>Densidad bordes</em> = (1/N) · Σ√(Gx²+Gy²) / 1442 &nbsp;[filtro Sobel 3×3]<br>
+          <em>F(Hz)</em> = 200 + Irregularidad × 800 &nbsp;[rango empírico dataset real: 209–277 Hz]
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Columna derecha: métricas + radar -->
+  <div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Métricas de estructura visual</span>
+      </div>
+
+      <!-- Estado vacío -->
+      <div class="empty-state" id="emptyState">
+        <span class="empty-icon">📊</span>
+        <span class="empty-text">Las métricas aparecerán aquí cuando cargues una imagen.</span>
+      </div>
+
+      <!-- Métricas (ocultas hasta tener imagen) -->
+      <div id="metricsContent" style="display:none;">
+
+        <div class="metrics-grid">
+          <div class="metric-cell">
+            <div class="metric-label-sm">
+              Irregularidad
+              <span class="info-dot" title="Energía de alta frecuencia. Diferencias entre píxeles vecinos. Alto = puntillismo / caos.">i</span>
+            </div>
+            <div class="metric-val" id="mIrregularity">—</div>
+            <div class="metric-bar"><div class="metric-bar-fill" id="barIrregularity"></div></div>
+          </div>
+          <div class="metric-cell">
+            <div class="metric-label-sm">
+              Entropía Shannon
+              <span class="info-dot" title="Riqueza informativa del histograma de luminancia. Máximo = 8 bits = 100%.">i</span>
+            </div>
+            <div class="metric-val" id="mEntropy">—</div>
+            <div class="metric-bar"><div class="metric-bar-fill" id="barEntropy"></div></div>
+          </div>
+          <div class="metric-cell">
+            <div class="metric-label-sm">
+              Varianza cromática
+              <span class="info-dot" title="Desviación estándar de los canales RGB. Alto = colores muy variados.">i</span>
+            </div>
+            <div class="metric-val" id="mColorStd">—</div>
+            <div class="metric-bar"><div class="metric-bar-fill" id="barColorStd"></div></div>
+          </div>
+          <div class="metric-cell">
+            <div class="metric-label-sm">
+              Contraste local
+              <span class="info-dot" title="Varianza de la luminancia en bloques 8×8. Detecta variaciones locales invisibles al ojo.">i</span>
+            </div>
+            <div class="metric-val" id="mLocalContrast">—</div>
+            <div class="metric-bar"><div class="metric-bar-fill" id="barLocalContrast"></div></div>
+          </div>
+          <div class="metric-cell metric-cell-wide">
+            <div class="metric-label-sm">
+              Esfuerzo de procesamiento
+              <span class="info-dot" title="Combinación ponderada: 0.5·Irr + 0.3·Ent + 0.2·σRGB. Cuanto más caótica la imagen, mayor coste cognitivo.">i</span>
+            </div>
+            <div class="metric-val" id="mEffort">—</div>
+            <div class="metric-bar"><div class="metric-bar-fill" id="barEffort"></div></div>
+          </div>
+          <div class="metric-cell metric-cell-wide">
+            <div class="metric-label-sm">
+              Densidad de bordes (Sobel)
+              <span class="info-dot" title="Filtro Sobel: detecta gradientes de luminancia. Alto = muchos bordes / puntillismo. √(Gx²+Gy²) normalizado.">i</span>
+            </div>
+            <div class="metric-val" id="mEdgeDensity">—</div>
+            <div class="metric-bar"><div class="metric-bar-fill" id="barEdgeDensity"></div></div>
+          </div>
+        </div>
+
+        <!-- Radar chart -->
+        <div class="radar-wrap">
+          <canvas id="radarCanvas" width="320" height="300" aria-hidden="true"></canvas>
+          <!-- Tabla ARIA: mismos datos del radar, invisible visualmente, legible por screen reader -->
+          <table class="radar-table" id="radarTable" aria-label="Datos del radar de métricas">
+            <caption>Perfil de métricas de la imagen analizada</caption>
+            <thead>
+              <tr><th scope="col">Métrica</th><th scope="col">Valor</th><th scope="col">Descripción</th></tr>
+            </thead>
+            <tbody id="radarTableBody">
+              <tr><td>Irregularidad</td><td id="at-irregularity">—</td><td>Energía de alta frecuencia entre píxeles vecinos</td></tr>
+              <tr><td>Entropía Shannon</td><td id="at-entropy">—</td><td>Riqueza informativa del histograma de luminancia</td></tr>
+              <tr><td>Varianza cromática</td><td id="at-colorstd">—</td><td>Dispersión de los canales de color RGB</td></tr>
+              <tr><td>Contraste local</td><td id="at-contrast">—</td><td>Varianza de luminancia en bloques 8×8</td></tr>
+              <tr><td>Esfuerzo de procesamiento</td><td id="at-effort">—</td><td>Combinación ponderada de las métricas anteriores</td></tr>
+              <tr><td>Densidad de bordes (Sobel)</td><td id="at-edge">—</td><td>Gradientes de luminancia detectados por filtro Sobel</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Interpretación -->
+        <div class="interpretation">
+          <div class="interp-title">Interpretación científica</div>
+          <div class="interp-text" id="interpText">—</div>
+          <span class="interp-style" id="interpStyle"></span>
+        </div>
+
+        <!-- Speak button: descripción verbal del perfil -->
+        <button class="speak-btn" id="speakBtn" aria-label="Leer descripción sonora en voz alta">
+          🔊 Leer perfil sonoro en voz alta
+        </button>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer class="page-footer">
+  ARGIRA · Museo Sonoro · ICAD 2026 · Jose Ranero García ·
+  <a href="https://doi.org/10.5281/zenodo.20097327" target="_blank" rel="noopener">Dataset Zenodo</a>
+</footer>
+
+<script>
+(function() {
+  'use strict';
+
+  // ── Estado ──
+  let currentImageData = null;
+  let currentMetrics = null;
+  let audioCtx = null;
+  let oscillator = null;
+  let gainNode = null;
+  let isPlaying = false;
+  let hasImage = false;
+
+  // ── DOM ──
+  const canvas = document.getElementById('imageCanvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const placeholder = document.getElementById('canvasPlaceholder');
+  const loadingBar = document.getElementById('loadingBar');
+  const emptyState = document.getElementById('emptyState');
+  const metricsContent = document.getElementById('metricsContent');
+  const radarCanvas = document.getElementById('radarCanvas');
+  const radarCtx = radarCanvas.getContext('2d');
+
+  // ── Live region ──
+  const liveRegion = document.getElementById('live-region');
+  function announce(msg) {
+    liveRegion.textContent = '';
+    setTimeout(() => { liveRegion.textContent = msg; }, 80);
+  }
+
+  // ── Tabs ──
+  document.querySelectorAll('.source-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.source-tab').forEach(t => {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+      });
+      document.querySelectorAll('.source-panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      tab.setAttribute('aria-selected', 'true');
+      document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+    });
+  });
+
+  // ── Upload ──
+  const uploadZone = document.getElementById('uploadZone');
+  const fileInput = document.getElementById('fileInput');
+
+  uploadZone.addEventListener('click', () => fileInput.click());
+  uploadZone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+  uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+  uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+  uploadZone.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) loadFromFile(file);
+  });
+  fileInput.addEventListener('change', e => {
+    if (e.target.files[0]) loadFromFile(e.target.files[0]);
+  });
+
+  // ── URL ──
+  document.getElementById('urlBtn').addEventListener('click', () => {
+    const url = document.getElementById('urlInput').value.trim();
+    if (url) loadFromURL(url);
+  });
+  document.getElementById('urlInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('urlBtn').click();
+  });
+
+  // ── Ejemplos generados ──
+  document.getElementById('btnMalevich').addEventListener('click', () => { stopSound(); generateMalevich(); });
+  document.getElementById('btnMonet').addEventListener('click',    () => { stopSound(); generateMonet(); });
+  document.getElementById('btnSeurat').addEventListener('click',   () => { stopSound(); generateSeurat(); });
+  document.getElementById('btnKandinsky').addEventListener('click',() => { stopSound(); generateKandinsky(); });
+  document.getElementById('btnRothko').addEventListener('click',   () => { stopSound(); generateRothko(); });
+  document.getElementById('btnVanGogh').addEventListener('click',  () => { stopSound(); generateVanGogh(); });
+
+  // ── Sonido ──
+  document.getElementById('btnPlay').addEventListener('click', startSound);
+  document.getElementById('btnStop').addEventListener('click', stopSound);
+
+  // ════════════════════════════════════════
+  // GENERADORES DE IMAGEN SINTÉTICA
+  // ════════════════════════════════════════
+
+  function setCanvasSize(w, h) {
+    canvas.width = w;
+    canvas.height = h;
+  }
+
+  function generateMalevich() {
+    setCanvasSize(400, 400);
+    // Fondo blanco ligeramente cálido
+    ctx.fillStyle = '#F5F5F0';
+    ctx.fillRect(0, 0, 400, 400);
+    // Cuadrado blanco casi idéntico (diferencia mínima)
+    ctx.fillStyle = '#EDEDE5';
+    ctx.fillRect(130, 130, 140, 140);
+    finishLoad();
+  }
+
+  function generateMonet() {
+    setCanvasSize(400, 400);
+    // Fondo verde-azulado (prado)
+    for (let y = 0; y < 400; y++) {
+      for (let x = 0; x < 400; x++) {
+        const n = noise2D(x * 0.03, y * 0.03);
+        // cielo arriba, prado abajo
+        const skyFactor = y / 400;
+        let r, g, b;
+        if (skyFactor < 0.35) {
+          // cielo
+          r = 160 + n * 30; g = 190 + n * 20; b = 220 + n * 20;
+        } else {
+          // prado verde con manchas rojas (amapolas)
+          const isPoppy = (Math.sin(x * 0.25) * Math.cos(y * 0.18) + n * 0.5) > 0.7;
+          if (isPoppy && skyFactor > 0.45) {
+            r = 200 + n * 55; g = 30 + n * 40; b = 20 + n * 30;
+          } else {
+            r = 60 + n * 50 + skyFactor * 40;
+            g = 100 + n * 60 + skyFactor * 20;
+            b = 40 + n * 40;
+          }
+        }
+        ctx.fillStyle = `rgb(${clamp(r)},${clamp(g)},${clamp(b)})`;
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+    finishLoad();
+  }
+
+  function generateSeurat() {
+    setCanvasSize(400, 400);
+    // Fondo base neutro
+    ctx.fillStyle = '#D4C9A0';
+    ctx.fillRect(0, 0, 400, 400);
+    // Puntillismo sintético: rejilla cuasi-regular con jitter pequeño
+    // Tamaño fijo de punto → alta densidad de bordes (Sobel) y irregularidad real
+    const STEP   = 7;    // separación entre centros (px) → período ~7px → 1/7 ≈ 0.14 c/px
+    const RADIUS = 2.5;  // radio fijo del círculo (px)
+    const JITTER = 1.2;  // desplazamiento máximo (<<STEP para mantener periodicidad)
+    const colors = [
+      [255, 80,  60],
+      [60,  120, 200],
+      [255, 200, 50],
+      [80,  180, 80],
+      [200, 80,  160],
+      [255, 140, 30],
+      [40,  160, 180],
+    ];
+    for (let y = STEP / 2; y < 400; y += STEP) {
+      for (let x = STEP / 2; x < 400; x += STEP) {
+        const jx = x + (Math.random() - 0.5) * JITTER * 2;
+        const jy = y + (Math.random() - 0.5) * JITTER * 2;
+        const c = colors[Math.floor(Math.random() * colors.length)];
+        ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+        ctx.beginPath();
+        ctx.arc(jx, jy, RADIUS, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    finishLoad();
+  }
+
+  function generateKandinsky() {
+    setCanvasSize(400, 400);
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, 400, 400);
+    // Formas geométricas de colores vibrantes
+    const shapes = [
+      { type: 'circle', x: 200, y: 180, r: 80, color: '#FFD700' },
+      { type: 'circle', x: 100, y: 120, r: 45, color: '#FF4444' },
+      { type: 'circle', x: 300, y: 250, r: 55, color: '#4488FF' },
+      { type: 'rect', x: 60, y: 260, w: 120, h: 80, color: '#44CC44' },
+      { type: 'rect', x: 270, y: 80, w: 90, h: 60, color: '#FF8844' },
+      { type: 'circle', x: 320, y: 150, r: 30, color: '#CC44CC' },
+    ];
+    shapes.forEach(s => {
+      ctx.fillStyle = s.color;
+      ctx.beginPath();
+      if (s.type === 'circle') {
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      } else {
+        ctx.rect(s.x, s.y, s.w, s.h);
+      }
+      ctx.fill();
+    });
+    // Líneas negras
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
+    [[50,50,350,350],[50,350,350,50],[200,0,200,400],[0,200,400,200]].forEach(([x1,y1,x2,y2]) => {
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    });
+    finishLoad();
+  }
+
+  function generateRothko() {
+    setCanvasSize(400, 400);
+    // Campos de color suaves con gradientes (marca Rothko)
+    const grad1 = ctx.createLinearGradient(0, 0, 0, 180);
+    grad1.addColorStop(0, '#8B1A1A');
+    grad1.addColorStop(1, '#C0392B');
+    ctx.fillStyle = grad1;
+    ctx.fillRect(0, 0, 400, 185);
+
+    const grad2 = ctx.createLinearGradient(0, 180, 0, 280);
+    grad2.addColorStop(0, '#2C1810');
+    grad2.addColorStop(1, '#1A0A05');
+    ctx.fillStyle = grad2;
+    ctx.fillRect(0, 180, 400, 100);
+
+    const grad3 = ctx.createLinearGradient(0, 270, 0, 400);
+    grad3.addColorStop(0, '#8B4513');
+    grad3.addColorStop(1, '#D2691E');
+    ctx.fillStyle = grad3;
+    ctx.fillRect(0, 270, 400, 130);
+
+    finishLoad();
+  }
+
+  function generateVanGogh() {
+    setCanvasSize(400, 400);
+    // Fondo azul noche — gradiente suave (baja frecuencia)
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, 300);
+    skyGrad.addColorStop(0, '#06082a');
+    skyGrad.addColorStop(1, '#0d2050');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, 400, 400);
+
+    // Trazos curvos anchos — pincelada expresionista
+    // Líneas largas y suaves: baja frecuencia espacial dominante
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (let i = 0; i < 40; i++) {
+      const cx = Math.random() * 400;
+      const cy = Math.random() * 270;
+      const r  = Math.random() * 60 + 30;   // radio grande → baja frecuencia
+      const hue = 200 + Math.random() * 40;
+      const lum = 35 + Math.random() * 25;
+      ctx.strokeStyle = `hsla(${hue}, 75%, ${lum}%, 0.55)`;
+      ctx.lineWidth = Math.random() * 10 + 6; // trazo gordo → transición gradual
+      ctx.beginPath();
+      const startAngle = Math.random() * Math.PI * 2;
+      ctx.arc(cx, cy, r, startAngle, startAngle + Math.PI * (0.6 + Math.random() * 0.8));
+      ctx.stroke();
+    }
+
+    // Estrellas difusas (blur via capas alpha, no bordes duros)
+    for (let i = 0; i < 25; i++) {
+      const sx = Math.random() * 400;
+      const sy = Math.random() * 240;
+      const sr = Math.random() * 8 + 4;
+      const grd = ctx.createRadialGradient(sx, sy, 0, sx, sy, sr);
+      grd.addColorStop(0, `rgba(255,255,200,0.7)`);
+      grd.addColorStop(1, `rgba(255,255,200,0)`);
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Pueblo — masas grandes sin bordes duros
+    ctx.fillStyle = '#0d1a0d';
+    ctx.fillRect(0, 300, 400, 100);
+    for (let i = 0; i < 10; i++) {
+      const bx = i * 42 - 5;
+      const bh = 30 + Math.random() * 50;
+      ctx.fillRect(bx, 340 - bh, 25, bh + 60);
+    }
+    finishLoad();
+  }
+
+  // ── Utilidades ──
+  function clamp(v) { return Math.max(0, Math.min(255, Math.round(v))); }
+
+  // Ruido simple (Perlin-like simplificado)
+  function noise2D(x, y) {
+    const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+    return (n - Math.floor(n)) * 2 - 1;
+  }
+
+  // ════════════════════════════════════════
+  // CARGA DESDE ARCHIVO / URL
+  // ════════════════════════════════════════
+
+  function loadFromFile(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => { drawImageToCanvas(img); finishLoad(); };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function loadFromURL(url) {
+    setLoading(true);
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => { drawImageToCanvas(img); finishLoad(); setLoading(false); };
+    img.onerror = () => {
+      setLoading(false);
+      alert('No se pudo cargar la imagen. Puede ser un problema de CORS. Prueba con Wikimedia Commons o sube la imagen directamente.');
+    };
+    img.src = url;
+  }
+
+  function drawImageToCanvas(img) {
+    const maxW = 500, maxH = 400;
+    let w = img.width, h = img.height;
+    if (w > maxW) { h = h * maxW / w; w = maxW; }
+    if (h > maxH) { w = w * maxH / h; h = maxH; }
+    canvas.width = Math.round(w);
+    canvas.height = Math.round(h);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  }
+
+  function setLoading(on) {
+    loadingBar.classList.toggle('active', on);
+  }
+
+  function finishLoad() {
+    currentImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    placeholder.style.display = 'none';
+    hasImage = true;
+    analyzeAndDisplay();
+  }
+
+  // ════════════════════════════════════════
+  // ANÁLISIS MÉTRICAS
+  // ════════════════════════════════════════
+
+  function computeMetrics(imgData) {
+    const data = imgData.data;
+    const W = imgData.width;
+    const H = imgData.height;
+    const N = W * H;
+
+    // Luminancia y canales
+    const lum = new Float32Array(N);
+    let rSum = 0, gSum = 0, bSum = 0;
+    for (let i = 0; i < N; i++) {
+      const r = data[i*4], g = data[i*4+1], b = data[i*4+2];
+      lum[i] = 0.2126*r + 0.7152*g + 0.0722*b;
+      rSum += r; gSum += g; bSum += b;
+    }
+    const rMean = rSum/N, gMean = gSum/N, bMean = bSum/N;
+
+    // 1. Irregularidad (diferencias vecinos horizontales + verticales)
+    let totalDiff = 0;
+    let numPairs = 0;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const idx = y * W + x;
+        if (x < W - 1) { totalDiff += Math.abs(lum[idx] - lum[idx + 1]); numPairs++; }
+        if (y < H - 1) { totalDiff += Math.abs(lum[idx] - lum[idx + W]); numPairs++; }
+      }
+    }
+    const irregularity = (totalDiff / numPairs) / 255;
+
+    // 2. Entropía de Shannon (histograma de luminancia, 256 bins)
+    const hist = new Float64Array(256);
+    for (let i = 0; i < N; i++) { hist[Math.round(lum[i])]++; }
+    let entropy = 0;
+    for (let g = 0; g < 256; g++) {
+      const p = hist[g] / N;
+      if (p > 0) entropy -= p * Math.log2(p);
+    }
+    const normEntropy = entropy / 8; // max = log2(256) = 8
+
+    // 3. Varianza cromática
+    let rVar = 0, gVar = 0, bVar = 0;
+    for (let i = 0; i < N; i++) {
+      rVar += Math.pow(data[i*4]   - rMean, 2);
+      gVar += Math.pow(data[i*4+1] - gMean, 2);
+      bVar += Math.pow(data[i*4+2] - bMean, 2);
+    }
+    const colorStd = Math.sqrt((rVar + gVar + bVar) / (3 * N)) / 255;
+
+    // 4. Contraste local (varianza de luminancia en bloques 8×8)
+    const bSize = 8;
+    let blockVarSum = 0, blockCount = 0;
+    for (let by = 0; by + bSize <= H; by += bSize) {
+      for (let bx = 0; bx + bSize <= W; bx += bSize) {
+        let sum = 0, sum2 = 0, cnt = 0;
+        for (let y = by; y < by + bSize; y++) {
+          for (let x = bx; x < bx + bSize; x++) {
+            const v = lum[y * W + x];
+            sum += v; sum2 += v * v; cnt++;
+          }
+        }
+        const mean = sum / cnt;
+        const variance = sum2 / cnt - mean * mean;
+        blockVarSum += Math.sqrt(Math.max(0, variance));
+        blockCount++;
+      }
+    }
+    const localContrast = (blockCount > 0) ? (blockVarSum / blockCount) / 255 : 0;
+
+    // 5. Densidad de bordes — filtro Sobel sobre luminancia
+    // Gx = [-1,0,1;-2,0,2;-1,0,1]  Gy = transpuesta
+    // magnitude = sqrt(Gx²+Gy²), normalizado a 0–1 (máximo teórico ~1442)
+    let sobelSum = 0;
+    const sobelN = (W - 2) * (H - 2); // interior sin borde de 1px
+    for (let y = 1; y < H - 1; y++) {
+      for (let x = 1; x < W - 1; x++) {
+        const tl = lum[(y-1)*W+(x-1)], tc = lum[(y-1)*W+x], tr = lum[(y-1)*W+(x+1)];
+        const ml = lum[y    *W+(x-1)],                        mr = lum[y    *W+(x+1)];
+        const bl = lum[(y+1)*W+(x-1)], bc = lum[(y+1)*W+x], br = lum[(y+1)*W+(x+1)];
+        const gx = -tl + tr - 2*ml + 2*mr - bl + br;
+        const gy = -tl - 2*tc - tr + bl + 2*bc + br;
+        sobelSum += Math.sqrt(gx*gx + gy*gy);
+      }
+    }
+    // Normalizar: magnitud máxima por píxel ≈ 1442 (255*4*√2)
+    const edgeDensity = sobelN > 0 ? sobelSum / sobelN / 1442 : 0;
+
+    // 6. Esfuerzo de procesamiento
+    const effort = 0.5 * irregularity + 0.3 * normEntropy + 0.2 * colorStd;
+
+    // 7. Frecuencia sonora
+    const freq = 200 + irregularity * 800;
+
+    return {
+      irregularity,
+      entropy: normEntropy,
+      colorStd,
+      localContrast,
+      edgeDensity,
+      effort: Math.min(1, effort),
+      freq
+    };
+  }
+
+  function analyzeAndDisplay() {
+    if (!currentImageData) return;
+    const m = computeMetrics(currentImageData);
+    currentMetrics = m;
+
+    // Mostrar sección métricas
+    emptyState.style.display = 'none';
+    metricsContent.style.display = 'block';
+
+    // Valores numéricos
+    setMetric('mIrregularity', 'barIrregularity', m.irregularity);
+    setMetric('mEntropy',      'barEntropy',       m.entropy);
+    setMetric('mColorStd',     'barColorStd',      m.colorStd);
+    setMetric('mLocalContrast','barLocalContrast', m.localContrast);
+    setMetric('mEffort',       'barEffort',        m.effort);
+    setMetric('mEdgeDensity',  'barEdgeDensity',   m.edgeDensity);
+
+    // Frecuencia
+    document.getElementById('freqVal').textContent = Math.round(m.freq) + ' Hz';
+    // Rango empírico del dataset real de 47 obras: 209–277 Hz (no 200–1000)
+    // Normalizar a ese rango da una barra visualmente significativa
+    const FREQ_MIN = 209, FREQ_MAX = 277;
+    const freqPct = Math.min(100, Math.max(0, (m.freq - FREQ_MIN) / (FREQ_MAX - FREQ_MIN) * 100));
+    document.getElementById('freqBarFill').style.width = freqPct + '%';
+
+    // Token
+    document.getElementById('tokenDesc').textContent =
+      `f = ${Math.round(m.freq)} Hz · Irr = ${pct(m.irregularity)} · Ent = ${pct(m.entropy)} · σRGB = ${pct(m.colorStd)} · Esfuerzo = ${pct(m.effort)} · Sobel = ${pct(m.edgeDensity)}`;
+
+    // Actualizar tabla ARIA
+    document.getElementById('at-irregularity').textContent = pct(m.irregularity);
+    document.getElementById('at-entropy').textContent      = pct(m.entropy);
+    document.getElementById('at-colorstd').textContent     = pct(m.colorStd);
+    document.getElementById('at-contrast').textContent     = pct(m.localContrast);
+    document.getElementById('at-effort').textContent       = pct(m.effort);
+    document.getElementById('at-edge').textContent        = pct(m.edgeDensity);
+
+    // Interpretación
+    updateInterpretation(m);
+
+    // Radar
+    drawRadar(m);
+
+    // Actualizar oscilador si está sonando
+    if (isPlaying && oscillator) {
+      oscillator.frequency.setTargetAtTime(m.freq, audioCtx.currentTime, 0.1);
+    }
+  }
+
+  function setMetric(valId, barId, v) {
+    document.getElementById(valId).textContent = pct(v);
+    setTimeout(() => {
+      document.getElementById(barId).style.width = (v * 100).toFixed(1) + '%';
+    }, 50);
+  }
+
+  function pct(v) { return Math.round(v * 100) + '%'; }
+
+  function updateInterpretation(m) {
+    let text, style;
+    const irr = m.irregularity;
+    const ent = m.entropy;
+
+    // Umbrales calibrados a posteriori con dataset real de 47 obras (Argira 2026)
+    // Rango empírico: 1–10% irregularidad. Media: 3.5%.
+    // irr < 0.02  → Rembrandt, Vermeer, Hopper, Mondrian        (1–2%)
+    // irr 0.02–0.035 → Monet, Velázquez, Turner, Malevich negro  (2–3%)
+    // irr 0.035–0.06 → Goya, Degas ballet, Cézanne, Seurat       (3–6%)
+    // irr 0.06–0.08 → Renoir, Botticelli, Monet Pourville        (6–8%)
+    // irr > 0.08  → Van Gogh, Klimt, Degas bailarinas            (8–10%)
+
+    if (irr < 0.02 && ent < 0.75) {
+      text = 'Irregularidad muy baja (zona 1–2% del dataset real). Pincelada contenida, zonas de color amplias o iluminación uniforme. El sonido es grave y estable. Perfil típico de Rembrandt, Vermeer o Hopper.';
+      style = 'Figurativo clásico / Realismo';
+    } else if (irr < 0.02) {
+      text = 'Irregularidad muy baja con entropía alta: imagen cromáticamente rica pero estructuralmente lisa. Gradientes suaves o composición geométrica limpia. Perfil Mondrian o Malevich negro.';
+      style = 'Geométrico / Suprematismo';
+    } else if (irr < 0.035) {
+      text = 'Irregularidad baja-media (zona 2–3%). Pincelada visible pero controlada. Transiciones de color moderadas. El sonido es grave con leves modulaciones. Perfil Monet, Turner o Velázquez.';
+      style = 'Impresionismo temprano / Barroco';
+    } else if (irr < 0.06) {
+      text = 'Irregularidad media (zona 3–6%). Pincelada activa y textura perceptible. El sonido tiene tono medio y riqueza tímbrica. En puntillismo real, Sobel confirma la densidad de bordes entre puntos. Perfil Cézanne, Goya, Degas o Seurat.';
+      style = 'Post-impresionismo / Puntillismo';
+    } else if (irr < 0.08) {
+      text = 'Irregularidad media-alta (zona 6–8%). Pincelada suelta y gestual. Alta energía de alta frecuencia. El sonido es notablemente más agudo. Perfil Renoir, Botticelli o Monet tardío.';
+      style = 'Impresionismo maduro / Renacentista';
+    } else {
+      text = 'Irregularidad alta (zona 8–10%, máximo del dataset real). Pincelada muy densa, expresionista o decorativa de gran detalle. El sonido es agudo y nervioso. Perfil Van Gogh, Klimt o Degas bailarinas.';
+      style = 'Expresionismo / Art Nouveau';
+    }
+
+    document.getElementById('interpText').textContent = text;
+    document.getElementById('interpStyle').textContent = style;
+
+    // Actualizar texto del speak-btn con el perfil completo
+    currentSpeakText = `Perfil sonoro: ${style}. Frecuencia ${Math.round(currentMetrics ? currentMetrics.freq : 0)} hercios. Irregularidad ${pct(m.irregularity)}, entropía ${pct(m.entropy)}, varianza cromática ${pct(m.colorStd)}, contraste local ${pct(m.localContrast)}, esfuerzo de procesamiento ${pct(m.effort)}. ${text}`;
+
+    // Anunciar al screen reader que el análisis está listo
+    announce(`Análisis completado. Estilo detectado: ${style}. Irregularidad ${pct(m.irregularity)}, entropía ${pct(m.entropy)}, esfuerzo ${pct(m.effort)}. Frecuencia sonora: ${Math.round(currentMetrics ? currentMetrics.freq : 0)} hercios.`);
+  }
+
+  // ════════════════════════════════════════
+  // RADAR CHART (canvas puro)
+  // ════════════════════════════════════════
+
+  function drawRadar(m) {
+    const W = radarCanvas.width;
+    const H = radarCanvas.height;
+    const cx = W / 2;
+    const cy = H / 2 + 10;
+    const r = Math.min(W, H) * 0.36;
+
+    radarCtx.clearRect(0, 0, W, H);
+
+    const labels = ['Irregularidad', 'Entropía', 'Varianza RGB', 'Contraste local', 'Esfuerzo', 'Sobel'];
+    const values = [m.irregularity, m.entropy, m.colorStd, m.localContrast, m.effort, m.edgeDensity];
+    const n = labels.length;
+    const angleStep = (Math.PI * 2) / n;
+    const startAngle = -Math.PI / 2;
+
+    // Grid (5 niveles)
+    for (let level = 1; level <= 5; level++) {
+      const rr = r * level / 5;
+      radarCtx.beginPath();
+      for (let i = 0; i < n; i++) {
+        const angle = startAngle + i * angleStep;
+        const x = cx + rr * Math.cos(angle);
+        const y = cy + rr * Math.sin(angle);
+        i === 0 ? radarCtx.moveTo(x, y) : radarCtx.lineTo(x, y);
+      }
+      radarCtx.closePath();
+      radarCtx.strokeStyle = 'rgba(232,201,106,0.12)';
+      radarCtx.lineWidth = 1;
+      radarCtx.stroke();
+    }
+
+    // Ejes
+    for (let i = 0; i < n; i++) {
+      const angle = startAngle + i * angleStep;
+      radarCtx.beginPath();
+      radarCtx.moveTo(cx, cy);
+      radarCtx.lineTo(cx + r * Math.cos(angle), cy + r * Math.sin(angle));
+      radarCtx.strokeStyle = 'rgba(232,201,106,0.18)';
+      radarCtx.lineWidth = 1;
+      radarCtx.stroke();
+    }
+
+    // Área de datos
+    radarCtx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const angle = startAngle + i * angleStep;
+      const rr = r * Math.min(1, values[i]);
+      const x = cx + rr * Math.cos(angle);
+      const y = cy + rr * Math.sin(angle);
+      i === 0 ? radarCtx.moveTo(x, y) : radarCtx.lineTo(x, y);
+    }
+    radarCtx.closePath();
+    radarCtx.fillStyle = 'rgba(232,201,106,0.15)';
+    radarCtx.fill();
+    radarCtx.strokeStyle = '#e8c96a';
+    radarCtx.lineWidth = 2;
+    radarCtx.stroke();
+
+    // Puntos
+    for (let i = 0; i < n; i++) {
+      const angle = startAngle + i * angleStep;
+      const rr = r * Math.min(1, values[i]);
+      const x = cx + rr * Math.cos(angle);
+      const y = cy + rr * Math.sin(angle);
+      radarCtx.beginPath();
+      radarCtx.arc(x, y, 4, 0, Math.PI * 2);
+      radarCtx.fillStyle = '#e8c96a';
+      radarCtx.fill();
+    }
+
+    // Etiquetas
+    radarCtx.font = '500 10px IBM Plex Sans, sans-serif';
+    radarCtx.fillStyle = '#a89e88';
+    radarCtx.textAlign = 'center';
+    for (let i = 0; i < n; i++) {
+      const angle = startAngle + i * angleStep;
+      const rr = r + 26;
+      const x = cx + rr * Math.cos(angle);
+      const y = cy + rr * Math.sin(angle) + 4;
+      // Valor
+      radarCtx.fillStyle = '#e8c96a';
+      radarCtx.font = 'bold 9px IBM Plex Mono, monospace';
+      radarCtx.fillText(Math.round(values[i] * 100) + '%', x, y - 10);
+      // Etiqueta
+      radarCtx.fillStyle = '#a89e88';
+      radarCtx.font = '10px IBM Plex Sans, sans-serif';
+      radarCtx.fillText(labels[i], x, y + 2);
+    }
+  }
+
+  // ════════════════════════════════════════
+  // SPEAK BUTTON (descripción verbal)
+  // ════════════════════════════════════════
+
+  let currentSpeakText = '';
+  let currentUtterance = null;
+
+  document.getElementById('speakBtn').addEventListener('click', function() {
+    if (!currentSpeakText) return;
+
+    if (currentUtterance) {
+      window.speechSynthesis.cancel();
+      currentUtterance = null;
+      this.classList.remove('speaking');
+      this.innerHTML = '🔊 Leer perfil sonoro en voz alta';
+      return;
+    }
+
+    const utter = new SpeechSynthesisUtterance(currentSpeakText);
+    utter.lang = 'es-ES';
+    utter.rate = 0.92;
+    currentUtterance = utter;
+    this.classList.add('speaking');
+    this.innerHTML = '⏹ Detener lectura';
+
+    utter.onend = () => {
+      currentUtterance = null;
+      this.classList.remove('speaking');
+      this.innerHTML = '🔊 Leer perfil sonoro en voz alta';
+    };
+
+    window.speechSynthesis.speak(utter);
+  });
+
+  // ════════════════════════════════════════
+  // AUDIO (oscilador simple con fade)
+  // ════════════════════════════════════════
+
+  function initAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      gainNode = audioCtx.createGain();
+      gainNode.gain.value = 0;
+      gainNode.connect(audioCtx.destination);
+    }
+  }
+
+  function startSound() {
+    if (!hasImage) { alert('Carga una imagen primero.'); return; }
+    if (isPlaying) return;
+    initAudio();
+
+    const resume = () => {
+      if (oscillator) { try { oscillator.stop(); } catch(e){} oscillator.disconnect(); }
+      oscillator = audioCtx.createOscillator();
+      oscillator.type = 'sine';
+      oscillator.frequency.value = currentMetrics ? currentMetrics.freq : 440;
+      oscillator.connect(gainNode);
+      oscillator.start();
+      // Fade in
+      gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.25, audioCtx.currentTime + 0.3);
+      isPlaying = true;
+      document.getElementById('btnPlay').classList.add('playing');
+      announce(`Reproduciendo sonido. Frecuencia ${Math.round(currentMetrics ? currentMetrics.freq : 0)} hercios.`);
+    };
+
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().then(resume);
+    } else {
+      resume();
+    }
+  }
+
+  function stopSound() {
+    if (!isPlaying) return;
+    gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+    gainNode.gain.setValueAtTime(gainNode.gain.value, audioCtx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+    setTimeout(() => {
+      if (oscillator) { try { oscillator.stop(); } catch(e){} oscillator.disconnect(); oscillator = null; }
+      isPlaying = false;
+      document.getElementById('btnPlay').classList.remove('playing');
+      announce('Sonido detenido.');
+    }, 350);
+  }
+
+  // Iniciar con ejemplo por defecto
+  generateMalevich();
+
+})();
+</script>
+</body>
+</html>
