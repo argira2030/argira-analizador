@@ -1,0 +1,19 @@
+El Zenodo está bien estructurado y los datos son sólidos. Pero hay una cosa que me llama la atención:
+
+**v13 tiene fecha May 9, 2026 y v14 tiene fecha April 9, 2026.**
+
+v14 es cronológicamente anterior a v13 en las fechas mostradas. Eso es un artefacto de Zenodo (las versiones se ordenan por número, no siempre por fecha de publicación real), pero visualmente confunde. Si alguien lo revisa en detalle puede preguntarse qué pasó.
+
+---
+
+Sobre el contenido en sí — lo que veo bien:
+
+El r=0.9289 con test de permutaciones 0/1000 es el número fuerte. Está bien destacado. El hecho de incluir también los resultados negativos (r(Dv,Ds)=0.0229, r(tempo,Ds)=0.3004) es científicamente honesto y le da credibilidad al conjunto.
+
+Lo que mejoraría para una v15:
+
+**El README** debería mencionar el analizador standalone y la correlación Sobel-Irregularidad r=0.9562 que calculaste sobre las 47 obras. Eso es un hallazgo nuevo que no está en ninguna versión actual de Zenodo y merece estar documentado.
+
+**La descripción** dice "pruebas" en el título que me mandas — supongo que eso es solo el contexto de esta conversación, no lo que está publicado.
+
+¿Quieres preparar la v15 con el analizador corregido (sin FFT) y el README actualizado?
