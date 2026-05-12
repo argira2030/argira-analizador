@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>Argira · Analizador de Imagen</title>
+<meta name="description" content="Argira: analizador científico de imágenes. Irregularidad, entropía Shannon, Sobel y firma acústica. ICAD 2026.">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Cinzel:wght@400;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Live region para anuncios dinámicos (screen readers) -->
+<div aria-live="polite" aria-atomic="true" class="sr-only" id="live-region"></div>
+
+<!-- Nav -->
+<nav class="site-nav" aria-label="Navegación">
+  <div class="nav-inner">
+    <a href="#" class="nav-brand">ARGIRA</a>
+    <a href="https://argira.eus/argira-sonification" class="nav-back">← Museo Sonoro</a>
+  </div>
+</nav>
+
+<!-- Header -->
+<header class="page-header">
+  <p class="header-eyebrow">Argira · Herramienta de Análisis</p>
+  <h1 class="page-title">Analizador de Imagen</h1>
+  <p class="page-sub">Lo que el ojo no ve, el algoritmo lo mide. Lo que el algoritmo mide, el sonido lo revela.</p>
+</header>
+
+<div class="loading-bar" id="loadingBar"></div>
+
+<!-- Main grid -->
+<div class="main-wrap">
+
+  <!-- Columna izquierda: imagen + fuentes -->
+  <div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Imagen analizada</span>
+      </div>
+
+      <!-- Preview canvas -->
+      <div class="image-preview-wrap">
+        <canvas id="imageCanvas" width="400" height="300"></canvas>
+        <div class="canvas-placeholder" id="canvasPlaceholder">
+          <span class="icon">🖼</span>
+          <span>Selecciona una imagen</span>
+        </div>
+      </div>
+
+      <!-- Tabs de fuente -->
+      <div class="source-tabs" role="tablist" aria-label="Fuente de imagen">
+        <button class="source-tab active" role="tab" aria-selected="true" data-tab="examples">Ejemplos</button>
+        <button class="source-tab" role="tab" aria-selected="false" data-tab="upload">Subir</button>
+        <button class="source-tab" role="tab" aria-selected="false" data-tab="url">URL</button>
+      </div>
+
+      <!-- Panel: Ejemplos generados -->
+      <div class="source-panel active" id="panel-examples">
+        <div class="examples-grid">
+          <button class="example-btn" id="btnMalevich"><span class="ex-icon">⬜</span>Malevich<br>Blanco/Blanco</button>
+          <button class="example-btn" id="btnMonet"><span class="ex-icon">🌿</span>Monet<br>Amapolas</button>
+          <button class="example-btn" id="btnSeurat"><span class="ex-icon">🎨</span>Seurat<br>Puntillismo</button>
+          <button class="example-btn" id="btnKandinsky"><span class="ex-icon">🔴</span>Kandinsky<br>Composición</button>
+          <button class="example-btn" id="btnRothko"><span class="ex-icon">🟫</span>Rothko<br>Campo de color</button>
+          <button class="example-btn" id="btnVanGogh"><span class="ex-icon">🌀</span>Van Gogh<br>Noche estrellada</button>
+        </div>
+      </div>
+
+      <!-- Panel: Subir archivo -->
+      <div class="source-panel" id="panel-upload">
+        <div class="upload-zone" id="uploadZone" role="button" tabindex="0" aria-label="Zona de carga de imagen">
+          <div class="upload-icon">📂</div>
+          <p>Arrastra una imagen aquí</p>
+          <p style="margin-top:6px; font-size:0.62rem; opacity:0.6">o haz clic para seleccionar · JPG, PNG</p>
+        </div>
+        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/jpg,image/webp" style="display:none" aria-label="Seleccionar archivo de imagen">
+      </div>
+
+      <!-- Panel: URL -->
+      <div class="source-panel" id="panel-url">
+        <div class="url-form">
+          <input type="url" class="url-input" id="urlInput" placeholder="https://..." aria-label="URL de la imagen">
+          <button class="url-btn" id="urlBtn">Cargar</button>
+        </div>
+        <p style="margin-top:10px; font-size:0.72rem; color:var(--text-dim); line-height:1.5;">La imagen debe permitir acceso CORS. Wikimedia Commons funciona bien.</p>
+      </div>
+
+      <!-- Sonido -->
+      <div class="sound-row">
+        <button class="sound-btn sound-btn-play" id="btnPlay" aria-label="Escuchar sonificación">▶ Escuchar irregularidad</button>
+        <button class="sound-btn sound-btn-stop" id="btnStop" aria-label="Parar sonido">■ Parar</button>
+      </div>
+
+      <!-- 🎛️ NUEVO: Control de agudos (shelving) -->
+      <div class="shelving-panel">
+        <div class="param-row">
+          <label>🎚️ Atenuar agudos: <span id="shelvingGainVal">0</span> dB</label>
+          <input type="range" id="shelvingGain" min="-12" max="0" step="1" value="0">
+        </div>
+        <div class="param-row">
+          <label>📡 Frecuencia de corte: <span id="shelvingFreqVal">5000</span> Hz</label>
+          <input type="range" id="shelvingFreq" min="2000" max="10000" step="100" value="5000">
+        </div>
+        <div class="shelving-indicator">
+          <div class="shelving-indicator-fill" id="shelvingActiveFill"></div>
+        </div>
+        <div class="shelving-note">Modo noche / reduce fatiga auditiva (r > 0.92)</div>
+      </div>
+
+      <!-- Indicador de frecuencia -->
+      <div class="freq-display" id="freqDisplay">
+        <span>Token sonoro:</span>
+        <span class="freq-value" id="freqVal">— Hz</span>
+        <div class="freq-bar"><div class="freq-bar-fill" id="freqBarFill"></div></div>
+      </div>
+    </div>
+
+    <!-- Token sonoro -->
+    <div class="card" style="margin-top:12px;">
+      <div class="sonic-token">
+        <div class="token-label">Firma acústica</div>
+        <div class="token-value" id="tokenDesc">Carga una imagen para ver su token sonoro.</div>
+      </div>
+      <div class="formulas">
+        <div class="formula-label">Fórmulas aplicadas</div>
+        <div class="formula-line">
+          <em>Irregularidad</em> = (1/N) · Σ|L(i,j)−L(i+1,j)| + |L(i,j)−L(i,j+1)| / 255<br>
+          <em>Entropía</em> = −Σ p(g)·log₂p(g) &nbsp; [g=0..255, normalizada a 8 bits]<br>
+          <em>Varianza RGB</em> = √( σ²R + σ²G + σ²B ) / 3 / 255<br>
+          <em>Esfuerzo</em> = 0.5·Irr + 0.3·Ent + 0.2·σRGB<br>
+          <em>Contraste local</em> = σ(bloques 8×8 de luminancia) / 255<br>
+          <em>Densidad bordes</em> = (1/N) · Σ√(Gx²+Gy²) / 1442 &nbsp;[filtro Sobel 3×3]<br>
+          <em>F(Hz)</em> = 200 + Irregularidad × 800 &nbsp;[rango empírico dataset real: 209–277 Hz]
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Columna derecha: métricas + radar -->
+  <div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Métricas de estructura visual</span>
+      </div>
+
+      <div class="empty-state" id="emptyState">
+        <span class="empty-icon">📊</span>
+        <span class="empty-text">Las métricas aparecerán aquí cuando cargues una imagen.</span>
+      </div>
+
+      <div id="metricsContent" style="display:none;">
+        <div class="metrics-grid">
+          <div class="metric-cell">
+            <div class="metric-label-sm">Irregularidad<span class="info-dot" title="Energía de alta frecuencia. Diferencias entre píxeles vecinos. Alto = puntillismo / caos.">i</span></div>
+            <div class="metric-val" id="mIrregularity">—</div>
+            <div class="metric-bar"><div class="metric-bar-fill" id="barIrregularity"></div></div>
+          </div>
+          <div class="metric-cell">
+            <div class="metric-label-sm">Entropía Shannon<span class="info-dot" title="Riqueza informativa del histograma de luminancia. Máximo = 8 bits = 100%.">i</span></div>
+            <div class="metric-val" id="mEntropy">—</div>
+            <div class="metric-bar"><div class="metric-bar-fill" id="barEntropy"></div></div>
+          </div>
+          <div class="metric-cell">
+            <div class="metric-label-sm">Varianza cromática<span class="info-dot" title="Desviación estándar de los canales RGB. Alto = colores muy variados.">i</span></div>
+            <div class="metric-val" id="mColorStd">—</div>
+            <div class="metric-bar"><div class="metric-bar-fill" id="barColorStd"></div></div>
+          </div>
+          <div class="metric-cell">
+            <div class="metric-label-sm">Contraste local<span class="info-dot" title="Varianza de la luminancia en bloques 8×8. Detecta variaciones locales invisibles al ojo.">i</span></div>
+            <div class="metric-val" id="mLocalContrast">—</div>
+            <div class="metric-bar"><div class="metric-bar-fill" id="barLocalContrast"></div></div>
+          </div>
+          <div class="metric-cell metric-cell-wide">
+            <div class="metric-label-sm">Esfuerzo de procesamiento<span class="info-dot" title="Combinación ponderada: 0.5·Irr + 0.3·Ent + 0.2·σRGB. Cuanto más caótica la imagen, mayor coste cognitivo.">i</span></div>
+            <div class="metric-val" id="mEffort">—</div>
+            <div class="metric-bar"><div class="metric-bar-fill" id="barEffort"></div></div>
+          </div>
+          <div class="metric-cell metric-cell-wide">
+            <div class="metric-label-sm">Densidad de bordes (Sobel)<span class="info-dot" title="Filtro Sobel: detecta gradientes de luminancia. Alto = muchos bordes / puntillismo. √(Gx²+Gy²) normalizado.">i</span></div>
+            <div class="metric-val" id="mEdgeDensity">—</div>
+            <div class="metric-bar"><div class="metric-bar-fill" id="barEdgeDensity"></div></div>
+          </div>
+        </div>
+
+        <div class="radar-wrap">
+          <canvas id="radarCanvas" width="320" height="300" aria-hidden="true"></canvas>
+          <table class="radar-table" id="radarTable" aria-label="Datos del radar de métricas">
+            <caption>Perfil de métricas de la imagen analizada</caption>
+            <thead><tr><th>Métrica</th><th>Valor</th><th>Descripción</th></tr></thead>
+            <tbody id="radarTableBody">
+              <tr><td>Irregularidad</td><td id="at-irregularity">—</td><td>Energía de alta frecuencia entre píxeles vecinos</td></tr>
+              <tr><td>Entropía Shannon</td><td id="at-entropy">—</td><td>Riqueza informativa del histograma de luminancia</td></tr>
+              <tr><td>Varianza cromática</td><td id="at-colorstd">—</td><td>Dispersión de los canales de color RGB</td></tr>
+              <tr><td>Contraste local</td><td id="at-contrast">—</td><td>Varianza de luminancia en bloques 8×8</td></tr>
+              <tr><td>Esfuerzo de procesamiento</td><td id="at-effort">—</td><td>Combinación ponderada de las métricas anteriores</td></tr>
+              <tr><td>Densidad de bordes (Sobel)</td><td id="at-edge">—</td><td>Gradientes de luminancia detectados por filtro Sobel</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="interpretation">
+          <div class="interp-title">Interpretación científica</div>
+          <div class="interp-text" id="interpText">—</div>
+          <span class="interp-style" id="interpStyle"></span>
+        </div>
+
+        <button class="speak-btn" id="speakBtn" aria-label="Leer descripción sonora en voz alta">🔊 Leer perfil sonoro en voz alta</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer class="page-footer">
+  ARGIRA · Museo Sonoro · ICAD 2026 · Jose Ranero García ·
+  <a href="https://doi.org/10.5281/zenodo.20097327" target="_blank" rel="noopener">Dataset Zenodo</a>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
